@@ -1,0 +1,261 @@
+"""
+Global stats and configuration for the OneMEME Launchpad.
+Singleton entity — id is always Bytes.fromUTF8("factory").
+"""
+type Factory @entity {
+  id: Bytes!
+
+  " Total tokens ever created "
+  totalTokensCreated: BigInt!
+  totalStandardTokens: BigInt!
+  totalTaxTokens: BigInt!
+  totalReflectionTokens: BigInt!
+
+  " Aggregate trade counts "
+  totalBuys: BigInt!
+  totalSells: BigInt!
+  totalMigrations: BigInt!
+
+  " Current factory settings "
+  creationFee: BigInt!
+  defaultVirtualBNB: BigInt!
+  defaultMigrationTarget: BigInt!
+  owner: Bytes!
+
+  " Timelock actions — serialised as JSON string array for simplicity "
+  pendingTimelocks: [TimelockAction!]! @derivedFrom(field: "factory")
+}
+
+"""
+A timelocked governance action queued on the factory.
+"""
+type TimelockAction @entity {
+  " actionId hex "
+  id: Bytes!
+  factory: Factory!
+  actionId: Bytes!
+  executeAfter: BigInt!
+  executed: Boolean!
+  cancelled: Boolean!
+  queuedAtTimestamp: BigInt!
+  queuedAtBlockNumber: BigInt!
+  queuedTxHash: Bytes!
+}
+
+"""
+A token launched through the OneMEME Launchpad.
+"""
+type Token @entity {
+  " Token contract address "
+  id: Bytes!
+  creator: Bytes!
+
+  " ERC-20 metadata (fetched via contract call at creation) "
+  name: String
+  symbol: String
+  totalSupply: BigInt!
+
+  " STANDARD | TAX | REFLECTION | UNKNOWN "
+  tokenType: String!
+
+  " Bonding-curve parameters (locked at creation) "
+  virtualBNB: BigInt!
+  migrationTarget: BigInt!
+  antibotEnabled: Boolean!
+  tradingBlock: BigInt!
+
+  " Current bonding-curve state "
+  raisedBNB: BigInt!
+  migrated: Boolean!
+
+  " Set after migration "
+  pair: Bytes
+  migrationBNB: BigInt
+  migrationLiquidityTokens: BigInt
+  migratedAtTimestamp: BigInt
+  migratedAtBlockNumber: BigInt
+
+  " Aggregate trade stats "
+  buysCount: BigInt!
+  sellsCount: BigInt!
+  totalVolumeBNBBuy: BigInt!
+  totalVolumeBNBSell: BigInt!
+
+  " Creation metadata "
+  createdAtTimestamp: BigInt!
+  createdAtBlockNumber: BigInt!
+  txHash: Bytes!
+
+  trades: [Trade!]! @derivedFrom(field: "token")
+  migrations: [Migration!]! @derivedFrom(field: "token")
+  vestingSchedules: [VestingSchedule!]! @derivedFrom(field: "token")
+}
+
+"""
+A single buy or sell on the bonding curve.
+"""
+type Trade @entity {
+  " txHash + logIndex "
+  id: Bytes!
+  token: Token!
+  trader: Bytes!
+
+  " BUY | SELL "
+  type: String!
+
+  " For BUY: BNB paid (gross, before fee). For SELL: BNB received (net, after fee). "
+  bnbAmount: BigInt!
+
+  " Tokens transferred to the trader (gross; does not subtract tokensToDead) "
+  tokenAmount: BigInt!
+
+  " Tokens sent to dead wallet by antibot penalty (0 for sells) "
+  tokensToDead: BigInt!
+
+  " raisedBNB pool value after this trade "
+  raisedBNBAfter: BigInt!
+
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}
+
+"""
+A migration to PancakeSwap V2 liquidity pool.
+"""
+type Migration @entity {
+  " txHash + logIndex "
+  id: Bytes!
+  token: Token!
+  pair: Bytes!
+  liquidityBNB: BigInt!
+  liquidityTokens: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}
+
+"""
+A creator vesting schedule (one per token per beneficiary).
+"""
+type VestingSchedule @entity {
+  " token address + beneficiary address (concatenated) "
+  id: Bytes!
+  token: Token!
+  beneficiary: Bytes!
+  amount: BigInt!
+  claimed: BigInt!
+  voided: Boolean!
+  burnedOnVoid: BigInt
+
+  createdAtTimestamp: BigInt!
+  createdAtBlockNumber: BigInt!
+
+  claims: [VestingClaim!]! @derivedFrom(field: "schedule")
+}
+
+"""
+A single vesting claim by a beneficiary.
+"""
+type VestingClaim @entity {
+  " txHash + logIndex "
+  id: Bytes!
+  schedule: VestingSchedule!
+  amount: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}
+
+# ─── Peripheral Contracts ────────────────────────────────────────────────────
+
+"""
+1MEMEBB buyback contract state.
+"""
+type BuyBack @entity {
+  " Contract address "
+  id: Bytes!
+  owner: Bytes!
+  router: Bytes!
+  buyToken: Bytes!
+  cooldown: BigInt!
+  lastBuyAt: BigInt!
+  totalBNBSpent: BigInt!
+  buybackCount: BigInt!
+  events: [BuyBackEvent!]! @derivedFrom(field: "buyback")
+}
+
+"""
+A single executed buyback.
+"""
+type BuyBackEvent @entity {
+  " txHash + logIndex "
+  id: Bytes!
+  buyback: BuyBack!
+  bnbSpent: BigInt!
+  balanceBefore: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}
+
+"""
+Collector fee-splitter contract state.
+"""
+type Collector @entity {
+  " Contract address "
+  id: Bytes!
+  owner: Bytes!
+  cr8: Bytes
+  mtn: Bytes
+  bb: Bytes
+  tw: Bytes
+  hk: Bytes
+  kjc: Bytes
+  totalDispersed: BigInt!
+  disperseCount: BigInt!
+  disperses: [DisperseEvent!]! @derivedFrom(field: "collector")
+}
+
+"""
+A single BNB disperse execution on the Collector.
+"""
+type DisperseEvent @entity {
+  " txHash + logIndex "
+  id: Bytes!
+  collector: Collector!
+  total: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}
+
+"""
+2-of-3 multisig Vault contract state.
+"""
+type VaultContract @entity {
+  " Contract address "
+  id: Bytes!
+  proposalCount: BigInt!
+  proposals: [VaultProposal!]! @derivedFrom(field: "vault")
+}
+
+"""
+A multisig proposal on the Vault.
+"""
+type VaultProposal @entity {
+  " vault address + proposal id "
+  id: Bytes!
+  vault: VaultContract!
+  proposalId: BigInt!
+  to: Bytes!
+  value: BigInt!
+  data: Bytes!
+  proposer: Bytes!
+  confirmCount: Int!
+  executed: Boolean!
+  cancelled: Boolean!
+  createdAtTimestamp: BigInt!
+  createdAtBlockNumber: BigInt!
+  txHash: Bytes!
+}

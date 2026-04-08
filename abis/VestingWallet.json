@@ -1,0 +1,50 @@
+[
+  {
+    "type": "event",
+    "name": "VestingAdded",
+    "inputs": [
+      { "name": "token",       "type": "address", "indexed": true  },
+      { "name": "beneficiary", "type": "address", "indexed": true  },
+      { "name": "amount",      "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Claimed",
+    "inputs": [
+      { "name": "token",       "type": "address", "indexed": true  },
+      { "name": "beneficiary", "type": "address", "indexed": true  },
+      { "name": "amount",      "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "VestingVoided",
+    "inputs": [
+      { "name": "token",       "type": "address", "indexed": true  },
+      { "name": "beneficiary", "type": "address", "indexed": true  },
+      { "name": "burned",      "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      { "name": "prev", "type": "address", "indexed": true },
+      { "name": "next", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FactoryUpdated",
+    "inputs": [
+      { "name": "prev", "type": "address", "indexed": true },
+      { "name": "next", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  }
+]

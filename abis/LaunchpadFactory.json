@@ -1,0 +1,173 @@
+[
+  {
+    "type": "event",
+    "name": "TokenCreated",
+    "inputs": [
+      { "name": "token",          "type": "address", "indexed": true  },
+      { "name": "creator",        "type": "address", "indexed": true  },
+      { "name": "totalSupply",    "type": "uint256", "indexed": false },
+      { "name": "virtualBNB",     "type": "uint256", "indexed": false },
+      { "name": "migrationTarget","type": "uint256", "indexed": false },
+      { "name": "antibotEnabled", "type": "bool",    "indexed": false },
+      { "name": "tradingBlock",   "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "DefaultParamsUpdated",
+    "inputs": [
+      { "name": "oldVirtualBNB",      "type": "uint256", "indexed": false },
+      { "name": "newVirtualBNB",      "type": "uint256", "indexed": false },
+      { "name": "oldMigrationTarget", "type": "uint256", "indexed": false },
+      { "name": "newMigrationTarget", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CreationFeeUpdated",
+    "inputs": [
+      { "name": "oldFee", "type": "uint256", "indexed": false },
+      { "name": "newFee", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RouterUpdated",
+    "inputs": [
+      { "name": "oldRouter", "type": "address", "indexed": true },
+      { "name": "newRouter", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FeeRecipientUpdated",
+    "inputs": [
+      { "name": "recipient", "type": "address", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CharityWalletUpdated",
+    "inputs": [
+      { "name": "wallet", "type": "address", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PlatformFeeUpdated",
+    "inputs": [
+      { "name": "feeBps", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CharityFeeUpdated",
+    "inputs": [
+      { "name": "feeBps", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ManagerAdded",
+    "inputs": [
+      { "name": "manager", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ManagerRemoved",
+    "inputs": [
+      { "name": "manager", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferProposed",
+    "inputs": [
+      { "name": "current",  "type": "address", "indexed": true },
+      { "name": "proposed", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      { "name": "prev", "type": "address", "indexed": true },
+      { "name": "next", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "VestingWalletUpdated",
+    "inputs": [
+      { "name": "prev", "type": "address", "indexed": true },
+      { "name": "next", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TimelockQueued",
+    "inputs": [
+      { "name": "actionId",     "type": "bytes32", "indexed": true  },
+      { "name": "executeAfter", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TimelockExecuted",
+    "inputs": [
+      { "name": "actionId", "type": "bytes32", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TimelockCancelled",
+    "inputs": [
+      { "name": "actionId", "type": "bytes32", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "address" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "creationFee",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "defaultVirtualBNB",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "defaultMigrationTarget",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint256" }],
+    "stateMutability": "view"
+  }
+]

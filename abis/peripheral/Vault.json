@@ -1,0 +1,59 @@
+[
+  {
+    "type": "event",
+    "name": "Received",
+    "inputs": [
+      { "name": "from",   "type": "address", "indexed": true  },
+      { "name": "amount", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Proposed",
+    "inputs": [
+      { "name": "id",       "type": "uint256", "indexed": true  },
+      { "name": "proposer", "type": "address", "indexed": true  },
+      { "name": "to",       "type": "address", "indexed": false },
+      { "name": "value",    "type": "uint256", "indexed": false },
+      { "name": "data",     "type": "bytes",   "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Confirmed",
+    "inputs": [
+      { "name": "id",     "type": "uint256", "indexed": true },
+      { "name": "signer", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Revoked",
+    "inputs": [
+      { "name": "id",     "type": "uint256", "indexed": true },
+      { "name": "signer", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Executed",
+    "inputs": [
+      { "name": "id",       "type": "uint256", "indexed": true },
+      { "name": "executor", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Cancelled",
+    "inputs": [
+      { "name": "id",       "type": "uint256", "indexed": true },
+      { "name": "proposer", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  }
+]

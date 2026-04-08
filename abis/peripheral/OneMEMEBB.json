@@ -1,0 +1,71 @@
+[
+  {
+    "type": "event",
+    "name": "OwnershipTransferInitiated",
+    "inputs": [
+      { "name": "proposed", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      { "name": "oldOwner", "type": "address", "indexed": true },
+      { "name": "newOwner", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RouterUpdated",
+    "inputs": [
+      { "name": "newRouter", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BuyTokenUpdated",
+    "inputs": [
+      { "name": "newToken", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CooldownUpdated",
+    "inputs": [
+      { "name": "newCooldown", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BoughtBack",
+    "inputs": [
+      { "name": "bnbSpent",      "type": "uint256", "indexed": false },
+      { "name": "balanceBefore", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TokensWithdrawn",
+    "inputs": [
+      { "name": "token",  "type": "address", "indexed": true  },
+      { "name": "to",     "type": "address", "indexed": true  },
+      { "name": "amount", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Received",
+    "inputs": [
+      { "name": "from",   "type": "address", "indexed": true  },
+      { "name": "amount", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  }
+]

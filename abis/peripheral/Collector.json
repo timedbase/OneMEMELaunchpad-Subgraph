@@ -1,0 +1,59 @@
+[
+  {
+    "type": "event",
+    "name": "OwnershipTransferInitiated",
+    "inputs": [
+      { "name": "proposed", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      { "name": "oldOwner", "type": "address", "indexed": true },
+      { "name": "newOwner", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RecipientsUpdated",
+    "inputs": [
+      { "name": "cr8", "type": "address", "indexed": false },
+      { "name": "mtn", "type": "address", "indexed": false },
+      { "name": "bb",  "type": "address", "indexed": false },
+      { "name": "tw",  "type": "address", "indexed": false },
+      { "name": "hk",  "type": "address", "indexed": false },
+      { "name": "kjc", "type": "address", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Dispersed",
+    "inputs": [
+      { "name": "total", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SendFailed",
+    "inputs": [
+      { "name": "recipient", "type": "address", "indexed": true  },
+      { "name": "amount",    "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TokenRescued",
+    "inputs": [
+      { "name": "token",  "type": "address", "indexed": true  },
+      { "name": "to",     "type": "address", "indexed": true  },
+      { "name": "amount", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  }
+]
