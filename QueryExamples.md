@@ -1,10 +1,30 @@
 # Query Examples
 
-GraphQL query reference for the OneMEME Launchpad subgraph.
+GraphQL query reference for the OneMEME Launchpad subgraph.  
+All fields are verified against [`schema.graphql`](schema.graphql).  
+Replace placeholder addresses (`0xTOKEN_ADDRESS`, etc.) with real checksummed hex.
+
+---
+
+## Table of contents
+
+1. [Factory](#factory)
+2. [Tokens](#tokens)
+3. [Trades](#trades)
+4. [Migrations](#migrations)
+5. [Vesting](#vesting)
+6. [Governance — Timelock actions](#governance--timelock-actions)
+7. [Peripheral — BuyBack](#peripheral--buyback)
+8. [Peripheral — Collector](#peripheral--collector)
+9. [Peripheral — Vault](#peripheral--vault)
+10. [Analytics & combined queries](#analytics--combined-queries)
+11. [Pagination](#pagination)
 
 ---
 
 ## Factory
+
+The `Factory` entity is a singleton. Query it as a list and take the first result, or by its fixed `id`.
 
 ### Global stats
 
@@ -22,6 +42,27 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
     defaultVirtualBNB
     defaultMigrationTarget
     owner
+  }
+}
+```
+
+### Factory with pending governance actions
+
+```graphql
+{
+  factories {
+    totalTokensCreated
+    totalBuys
+    totalSells
+    totalMigrations
+    creationFee
+    defaultVirtualBNB
+    defaultMigrationTarget
+    pendingTimelocks(where: { executed: false, cancelled: false }) {
+      id
+      executeAfter
+      queuedAtTimestamp
+    }
   }
 }
 ```
@@ -51,69 +92,6 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
 }
 ```
 
-### Tokens by creator
-
-```graphql
-{
-  tokens(
-    where: { creator: "0xYOUR_ADDRESS" }
-    orderBy: createdAtTimestamp
-    orderDirection: desc
-  ) {
-    id
-    name
-    symbol
-    tokenType
-    raisedBNB
-    migrationTarget
-    migrated
-    pair
-    buysCount
-    sellsCount
-    totalVolumeBNBBuy
-    totalVolumeBNBSell
-  }
-}
-```
-
-### Tokens still on the bonding curve (not yet migrated)
-
-```graphql
-{
-  tokens(where: { migrated: false }, orderBy: raisedBNB, orderDirection: desc) {
-    id
-    name
-    symbol
-    tokenType
-    raisedBNB
-    migrationTarget
-    antibotEnabled
-    tradingBlock
-    buysCount
-    creator
-  }
-}
-```
-
-### Tokens that have migrated
-
-```graphql
-{
-  tokens(where: { migrated: true }, orderBy: migratedAtTimestamp, orderDirection: desc) {
-    id
-    name
-    symbol
-    tokenType
-    pair
-    migrationBNB
-    migrationLiquidityTokens
-    migratedAtTimestamp
-    totalVolumeBNBBuy
-    totalVolumeBNBSell
-  }
-}
-```
-
 ### Single token — full detail
 
 ```graphql
@@ -135,6 +113,7 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
     migrationBNB
     migrationLiquidityTokens
     migratedAtTimestamp
+    migratedAtBlockNumber
     buysCount
     sellsCount
     totalVolumeBNBBuy
@@ -146,18 +125,170 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
 }
 ```
 
+### Tokens by creator
+
+```graphql
+{
+  tokens(
+    where: { creator: "0xCREATOR_ADDRESS" }
+    orderBy: createdAtTimestamp
+    orderDirection: desc
+  ) {
+    id
+    name
+    symbol
+    tokenType
+    raisedBNB
+    migrationTarget
+    migrated
+    pair
+    buysCount
+    sellsCount
+    totalVolumeBNBBuy
+    totalVolumeBNBSell
+    createdAtTimestamp
+  }
+}
+```
+
+### Tokens still on the bonding curve (not yet migrated)
+
+```graphql
+{
+  tokens(where: { migrated: false }, orderBy: raisedBNB, orderDirection: desc) {
+    id
+    name
+    symbol
+    tokenType
+    raisedBNB
+    migrationTarget
+    antibotEnabled
+    tradingBlock
+    buysCount
+    sellsCount
+    creator
+    createdAtTimestamp
+  }
+}
+```
+
+### Tokens that have migrated to DEX
+
+```graphql
+{
+  tokens(where: { migrated: true }, orderBy: migratedAtTimestamp, orderDirection: desc) {
+    id
+    name
+    symbol
+    tokenType
+    pair
+    migrationBNB
+    migrationLiquidityTokens
+    migratedAtTimestamp
+    totalVolumeBNBBuy
+    totalVolumeBNBSell
+    buysCount
+    sellsCount
+  }
+}
+```
+
 ### Tokens by type
 
 ```graphql
-# Replace STANDARD with TAX or REFLECTION as needed
+# tokenType: STANDARD | TAX | REFLECTION | UNKNOWN
 {
-  tokens(where: { tokenType: "STANDARD" }, orderBy: createdAtTimestamp, orderDirection: desc) {
+  tokens(
+    where: { tokenType: "TAX" }
+    orderBy: createdAtTimestamp
+    orderDirection: desc
+  ) {
     id
     name
     symbol
     raisedBNB
     migrated
     creator
+    createdAtTimestamp
+  }
+}
+```
+
+### Tokens near migration threshold (≥ 80 % filled)
+
+Returns tokens whose `raisedBNB` is at least 80 % of `migrationTarget`.  
+Since The Graph cannot compute ratios in a filter, the pattern is to filter by a known minimum `raisedBNB` value and sort descending — or use a client-side ratio check on results.
+
+```graphql
+# Fetch active tokens sorted by raisedBNB desc; filter client-side for raisedBNB / migrationTarget >= 0.8
+{
+  tokens(
+    where: { migrated: false }
+    orderBy: raisedBNB
+    orderDirection: desc
+    first: 50
+  ) {
+    id
+    name
+    symbol
+    raisedBNB
+    migrationTarget
+    buysCount
+  }
+}
+```
+
+### Fresh launches — tokens with zero trades yet
+
+```graphql
+{
+  tokens(where: { buysCount: 0, migrated: false }, orderBy: createdAtTimestamp, orderDirection: desc) {
+    id
+    name
+    symbol
+    tokenType
+    creator
+    createdAtTimestamp
+    txHash
+  }
+}
+```
+
+### Tokens with antibot enabled
+
+```graphql
+{
+  tokens(where: { antibotEnabled: true }, orderBy: createdAtTimestamp, orderDirection: desc) {
+    id
+    name
+    symbol
+    tradingBlock
+    createdAtBlockNumber
+    raisedBNB
+    migrated
+  }
+}
+```
+
+### Tokens created within a time range
+
+```graphql
+# Unix timestamps: 1700000000 to 1710000000
+{
+  tokens(
+    where: {
+      createdAtTimestamp_gte: "1700000000"
+      createdAtTimestamp_lte: "1710000000"
+    }
+    orderBy: createdAtTimestamp
+    orderDirection: asc
+  ) {
+    id
+    name
+    symbol
+    tokenType
+    creator
+    createdAtTimestamp
   }
 }
 ```
@@ -180,6 +311,7 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
     tokensToDead
     raisedBNBAfter
     timestamp
+    blockNumber
     txHash
   }
 }
@@ -208,7 +340,7 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
 }
 ```
 
-### Trades by a specific wallet
+### All trades by a specific wallet
 
 ```graphql
 {
@@ -218,9 +350,10 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
     orderDirection: desc
   ) {
     type
-    token { id name symbol }
+    token { id name symbol tokenType }
     bnbAmount
     tokenAmount
+    tokensToDead
     raisedBNBAfter
     timestamp
     txHash
@@ -228,7 +361,7 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
 }
 ```
 
-### Buys only — sorted by BNB spent
+### Buys only — sorted by BNB spent (largest first)
 
 ```graphql
 {
@@ -243,22 +376,93 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
     bnbAmount
     tokenAmount
     tokensToDead
+    raisedBNBAfter
     timestamp
+    txHash
   }
 }
 ```
 
-### Trades with antibot penalty (tokensToDead > 0)
+### Sells only — sorted by BNB received (largest first)
 
 ```graphql
 {
-  trades(where: { tokensToDead_gt: "0" }, orderBy: timestamp, orderDirection: desc) {
+  trades(
+    where: { type: "SELL" }
+    orderBy: bnbAmount
+    orderDirection: desc
+    first: 20
+  ) {
+    token { id name symbol }
+    trader
+    bnbAmount
+    tokenAmount
+    raisedBNBAfter
+    timestamp
+    txHash
+  }
+}
+```
+
+### Large trades — whale filter (buys > 0.5 BNB)
+
+`bnbAmount` is stored in wei (1 BNB = 1e18).
+
+```graphql
+{
+  trades(
+    where: { type: "BUY", bnbAmount_gt: "500000000000000000" }
+    orderBy: bnbAmount
+    orderDirection: desc
+  ) {
+    token { id name symbol }
+    trader
+    bnbAmount
+    tokenAmount
+    timestamp
+    txHash
+  }
+}
+```
+
+### Trades with antibot penalty applied (tokensToDead > 0)
+
+```graphql
+{
+  trades(
+    where: { tokensToDead_gt: "0" }
+    orderBy: timestamp
+    orderDirection: desc
+  ) {
     token { id name symbol }
     trader
     tokenAmount
     tokensToDead
+    bnbAmount
     timestamp
     txHash
+  }
+}
+```
+
+### Trades within a time range
+
+```graphql
+{
+  trades(
+    where: {
+      timestamp_gte: "1700000000"
+      timestamp_lte: "1710000000"
+    }
+    orderBy: timestamp
+    orderDirection: asc
+  ) {
+    type
+    token { id name symbol }
+    trader
+    bnbAmount
+    tokenAmount
+    timestamp
   }
 }
 ```
@@ -273,11 +477,12 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
 {
   migrations(orderBy: timestamp, orderDirection: desc) {
     id
-    token { id name symbol tokenType }
+    token { id name symbol tokenType creator }
     pair
     liquidityBNB
     liquidityTokens
     timestamp
+    blockNumber
     txHash
   }
 }
@@ -298,6 +503,20 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
 }
 ```
 
+### Migrations sorted by liquidity BNB (largest first)
+
+```graphql
+{
+  migrations(orderBy: liquidityBNB, orderDirection: desc, first: 20) {
+    token { id name symbol tokenType }
+    pair
+    liquidityBNB
+    liquidityTokens
+    timestamp
+  }
+}
+```
+
 ---
 
 ## Vesting
@@ -313,6 +532,8 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
     amount
     claimed
     createdAtTimestamp
+    createdAtBlockNumber
+    txHash
   }
 }
 ```
@@ -322,7 +543,23 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
 ```graphql
 {
   vestingSchedules(where: { beneficiary: "0xBENEFICIARY_ADDRESS" }) {
-    token { id name symbol }
+    token { id name symbol tokenType }
+    amount
+    claimed
+    voided
+    burnedOnVoid
+    createdAtTimestamp
+    txHash
+  }
+}
+```
+
+### Schedules for a specific token
+
+```graphql
+{
+  vestingSchedules(where: { token: "0xTOKEN_ADDRESS" }) {
+    beneficiary
     amount
     claimed
     voided
@@ -341,7 +578,25 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
     orderBy: timestamp
     orderDirection: desc
   ) {
-    schedule { token { id name symbol } }
+    schedule { token { id name symbol } amount claimed }
+    amount
+    timestamp
+    blockNumber
+    txHash
+  }
+}
+```
+
+### All claims on a specific token
+
+```graphql
+{
+  vestingClaims(
+    where: { schedule_: { token: "0xTOKEN_ADDRESS" } }
+    orderBy: timestamp
+    orderDirection: desc
+  ) {
+    schedule { beneficiary amount claimed }
     amount
     timestamp
     txHash
@@ -364,24 +619,49 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
 }
 ```
 
+### Schedules with unclaimed balance (not voided, claimed < amount)
+
+```graphql
+# Fetches non-voided schedules where something has been claimed but not fully vested yet.
+# Filter claimed_lt cannot express "claimed < amount" dynamically — fetch all and compute client-side.
+{
+  vestingSchedules(
+    where: { voided: false }
+    orderBy: amount
+    orderDirection: desc
+  ) {
+    token { id name symbol }
+    beneficiary
+    amount
+    claimed
+    createdAtTimestamp
+  }
+}
+```
+
 ---
 
 ## Governance — Timelock actions
 
-### Pending timelock actions (queued, not yet executed or cancelled)
+### Pending actions (queued, not yet executed or cancelled)
 
 ```graphql
 {
-  timelockActions(where: { executed: false, cancelled: false }) {
+  timelockActions(
+    where: { executed: false, cancelled: false }
+    orderBy: executeAfter
+    orderDirection: asc
+  ) {
     id
     executeAfter
     queuedAtTimestamp
+    queuedAtBlockNumber
     queuedTxHash
   }
 }
 ```
 
-### Full timelock history
+### Full timelock history — newest first
 
 ```graphql
 {
@@ -391,6 +671,33 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
     cancelled
     executeAfter
     queuedAtTimestamp
+    queuedAtBlockNumber
+    queuedTxHash
+  }
+}
+```
+
+### Executed actions only
+
+```graphql
+{
+  timelockActions(where: { executed: true }, orderBy: queuedAtTimestamp, orderDirection: desc) {
+    id
+    executeAfter
+    queuedAtTimestamp
+    queuedTxHash
+  }
+}
+```
+
+### Cancelled actions only
+
+```graphql
+{
+  timelockActions(where: { cancelled: true }, orderBy: queuedAtTimestamp, orderDirection: desc) {
+    id
+    executeAfter
+    queuedAtTimestamp
     queuedTxHash
   }
 }
@@ -398,7 +705,9 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
 
 ---
 
-## Peripheral — BuyBack *(subgraph.full.yaml only)*
+## Peripheral — BuyBack
+
+> Requires `subgraph.full.yaml` deployment.
 
 ### BuyBack contract state
 
@@ -417,11 +726,49 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
 }
 ```
 
+### BuyBack state with full event history
+
+```graphql
+{
+  buyBacks {
+    id
+    owner
+    router
+    buyToken
+    cooldown
+    lastBuyAt
+    totalBNBSpent
+    buybackCount
+    events(orderBy: timestamp, orderDirection: desc, first: 20) {
+      bnbSpent
+      balanceBefore
+      timestamp
+      txHash
+    }
+  }
+}
+```
+
 ### Recent buyback events
 
 ```graphql
 {
   buyBackEvents(orderBy: timestamp, orderDirection: desc, first: 20) {
+    buyback { id buyToken }
+    bnbSpent
+    balanceBefore
+    timestamp
+    blockNumber
+    txHash
+  }
+}
+```
+
+### Largest buybacks by BNB spent
+
+```graphql
+{
+  buyBackEvents(orderBy: bnbSpent, orderDirection: desc, first: 10) {
     buyback { id buyToken }
     bnbSpent
     balanceBefore
@@ -433,7 +780,9 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
 
 ---
 
-## Peripheral — Collector *(subgraph.full.yaml only)*
+## Peripheral — Collector
+
+> Requires `subgraph.full.yaml` deployment.
 
 ### Collector state
 
@@ -454,11 +803,43 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
 }
 ```
 
-### Disperse history
+### Collector state with disperse history
+
+```graphql
+{
+  collectors {
+    id
+    owner
+    totalDispersed
+    disperseCount
+    disperses(orderBy: timestamp, orderDirection: desc, first: 20) {
+      total
+      timestamp
+      txHash
+    }
+  }
+}
+```
+
+### All disperse events — newest first
 
 ```graphql
 {
   disperseEvents(orderBy: timestamp, orderDirection: desc) {
+    collector { id }
+    total
+    timestamp
+    blockNumber
+    txHash
+  }
+}
+```
+
+### Largest disperse events
+
+```graphql
+{
+  disperseEvents(orderBy: total, orderDirection: desc, first: 10) {
     collector { id }
     total
     timestamp
@@ -469,7 +850,20 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
 
 ---
 
-## Peripheral — Vault *(subgraph.full.yaml only)*
+## Peripheral — Vault
+
+> Requires `subgraph.full.yaml` deployment.
+
+### Vault state
+
+```graphql
+{
+  vaultContracts {
+    id
+    proposalCount
+  }
+}
+```
 
 ### All proposals — newest first
 
@@ -481,27 +875,51 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
     proposalId
     to
     value
+    data
     proposer
     confirmCount
     executed
     cancelled
+    createdAtTimestamp
+    createdAtBlockNumber
+    txHash
+  }
+}
+```
+
+### Proposals awaiting execution (2-of-3 threshold met, not yet executed)
+
+```graphql
+{
+  vaultProposals(
+    where: { executed: false, cancelled: false, confirmCount_gte: 2 }
+    orderBy: createdAtTimestamp
+    orderDirection: desc
+  ) {
+    proposalId
+    to
+    value
+    data
+    proposer
+    confirmCount
     createdAtTimestamp
     txHash
   }
 }
 ```
 
-### Proposals awaiting execution (threshold met, not yet executed)
+### Proposals still collecting signatures (threshold not yet met)
 
 ```graphql
 {
   vaultProposals(
-    where: { executed: false, cancelled: false, confirmCount_gte: 2 }
+    where: { executed: false, cancelled: false, confirmCount_lt: 2 }
+    orderBy: createdAtTimestamp
+    orderDirection: desc
   ) {
     proposalId
     to
     value
-    data
     proposer
     confirmCount
     createdAtTimestamp
@@ -513,7 +931,11 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
 
 ```graphql
 {
-  vaultProposals(where: { executed: true }, orderBy: createdAtTimestamp, orderDirection: desc) {
+  vaultProposals(
+    where: { executed: true }
+    orderBy: createdAtTimestamp
+    orderDirection: desc
+  ) {
     proposalId
     to
     value
@@ -525,11 +947,30 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
 }
 ```
 
+### Cancelled proposals
+
+```graphql
+{
+  vaultProposals(
+    where: { cancelled: true }
+    orderBy: createdAtTimestamp
+    orderDirection: desc
+  ) {
+    proposalId
+    to
+    value
+    proposer
+    createdAtTimestamp
+    txHash
+  }
+}
+```
+
 ---
 
-## Combined queries
+## Analytics & combined queries
 
-### Token with its full trade and vesting history
+### Token with full trade, vesting, and migration detail
 
 ```graphql
 {
@@ -538,34 +979,48 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
     symbol
     tokenType
     creator
+    totalSupply
     raisedBNB
+    migrationTarget
     migrated
     pair
+    migrationBNB
+    migrationLiquidityTokens
+    migratedAtTimestamp
+    buysCount
+    sellsCount
+    totalVolumeBNBBuy
+    totalVolumeBNBSell
+    createdAtTimestamp
     trades(orderBy: timestamp, orderDirection: desc, first: 50) {
       type
       trader
       bnbAmount
       tokenAmount
       tokensToDead
+      raisedBNBAfter
       timestamp
+      txHash
     }
     vestingSchedules {
       beneficiary
       amount
       claimed
       voided
+      burnedOnVoid
     }
     migrations {
       pair
       liquidityBNB
       liquidityTokens
       timestamp
+      txHash
     }
   }
 }
 ```
 
-### Creator portfolio — tokens with trade volume
+### Creator portfolio — all tokens with volume stats
 
 ```graphql
 {
@@ -579,32 +1034,202 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
     symbol
     tokenType
     raisedBNB
+    migrationTarget
     migrated
+    pair
     buysCount
     sellsCount
     totalVolumeBNBBuy
     totalVolumeBNBSell
     createdAtTimestamp
+    vestingSchedules {
+      beneficiary
+      amount
+      claimed
+      voided
+    }
   }
 }
 ```
 
-### Factory stats with pending governance actions
+### Top 10 tokens by total BNB buy volume
+
+```graphql
+{
+  tokens(orderBy: totalVolumeBNBBuy, orderDirection: desc, first: 10) {
+    id
+    name
+    symbol
+    tokenType
+    totalVolumeBNBBuy
+    totalVolumeBNBSell
+    buysCount
+    sellsCount
+    migrated
+    creator
+  }
+}
+```
+
+### Top 10 tokens by trade count (most active)
+
+```graphql
+{
+  tokens(orderBy: buysCount, orderDirection: desc, first: 10) {
+    id
+    name
+    symbol
+    tokenType
+    buysCount
+    sellsCount
+    totalVolumeBNBBuy
+    raisedBNB
+    migrated
+  }
+}
+```
+
+### Activity leaderboard — top traders by trade count
+
+```graphql
+# The Graph does not aggregate across entities natively.
+# Fetch all trades for a token and aggregate trader counts client-side.
+{
+  trades(
+    where: { token: "0xTOKEN_ADDRESS" }
+    orderBy: timestamp
+    orderDirection: desc
+    first: 1000
+  ) {
+    trader
+    type
+    bnbAmount
+    tokenAmount
+    timestamp
+  }
+}
+```
+
+### Migration pipeline — factory overview
 
 ```graphql
 {
   factories {
     totalTokensCreated
-    totalBuys
-    totalSells
     totalMigrations
+  }
+  activeBonding: tokens(where: { migrated: false }, orderBy: raisedBNB, orderDirection: desc, first: 10) {
+    id
+    name
+    symbol
+    raisedBNB
+    migrationTarget
+    buysCount
+  }
+  recentMigrations: migrations(orderBy: timestamp, orderDirection: desc, first: 5) {
+    token { id name symbol }
+    pair
+    liquidityBNB
+    timestamp
+  }
+}
+```
+
+### Governance dashboard — factory config and pending actions
+
+```graphql
+{
+  factories {
     creationFee
     defaultVirtualBNB
     defaultMigrationTarget
+    owner
     pendingTimelocks(where: { executed: false, cancelled: false }) {
       id
       executeAfter
+      queuedAtTimestamp
+      queuedTxHash
     }
+  }
+}
+```
+
+---
+
+## Pagination
+
+The Graph uses `first` (page size) and `skip` (offset) for pagination, or cursor-based pagination via `id_gt` / `timestamp_gt` filters (preferred for large datasets).
+
+### Offset-based (simple, avoid for > 5 000 results)
+
+```graphql
+# Page 1
+{
+  trades(orderBy: timestamp, orderDirection: desc, first: 50, skip: 0) {
+    id type trader bnbAmount timestamp
+  }
+}
+
+# Page 2
+{
+  trades(orderBy: timestamp, orderDirection: desc, first: 50, skip: 50) {
+    id type trader bnbAmount timestamp
+  }
+}
+```
+
+### Cursor-based (scalable — use for large result sets)
+
+Use the last returned `id` or `timestamp` as the cursor for the next page.
+
+```graphql
+# First page
+{
+  trades(orderBy: timestamp, orderDirection: desc, first: 50) {
+    id
+    type
+    trader
+    bnbAmount
+    timestamp
+  }
+}
+
+# Next page — pass the timestamp of the last result as the cursor
+{
+  trades(
+    where: { timestamp_lt: "LAST_TIMESTAMP" }
+    orderBy: timestamp
+    orderDirection: desc
+    first: 50
+  ) {
+    id
+    type
+    trader
+    bnbAmount
+    timestamp
+  }
+}
+```
+
+### Cursor-based pagination for tokens
+
+```graphql
+# First page
+{
+  tokens(orderBy: createdAtTimestamp, orderDirection: desc, first: 20) {
+    id name symbol raisedBNB migrated createdAtTimestamp
+  }
+}
+
+# Next page
+{
+  tokens(
+    where: { createdAtTimestamp_lt: "LAST_TIMESTAMP" }
+    orderBy: createdAtTimestamp
+    orderDirection: desc
+    first: 20
+  ) {
+    id name symbol raisedBNB migrated createdAtTimestamp
   }
 }
 ```
