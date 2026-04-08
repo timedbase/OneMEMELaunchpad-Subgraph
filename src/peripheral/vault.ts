@@ -46,29 +46,16 @@ export function handleProposed(event: Proposed): void {
 }
 
 export function handleConfirmed(event: Confirmed): void {
-  // Skip the auto-confirm emitted inside propose() — handled in handleProposed.
-  // We distinguish by checking if a Proposed event was also in this tx for this id.
-  // Since we can't check sibling logs, we apply the increment and let handleProposed
-  // initialise confirmCount = 1; subsequent Confirmed events add to it correctly.
   const id       = proposalEntityId(event.address, event.params.id);
   const proposal = VaultProposal.load(id);
-  if (proposal == null) return; // Proposed handler hasn't run yet (shouldn't happen)
+  if (proposal == null) return;
 
-  // The Confirmed event is emitted both by propose() (auto-confirm) and confirm().
-  // For the auto-confirm, handleProposed already set confirmCount = 1, so we guard
-  // against double-incrementing by only adding when the proposal already exists
-  // AND this log comes after the Proposed log in the same block.
-  // Simplest correct approach: trust the on-chain confirmCount from the contract.
-  // Since we can't call a view here without an RPC, we increment unconditionally;
-  // handleProposed sets count=1 and this handler will fire for every subsequent confirm.
-  // The auto-confirm Confirmed fires IN THE SAME TX as Proposed — both are indexed,
-  // so handleProposed fires first (lower log index) and sets count=1, then this
-  // fires and would over-count.  We fix by only incrementing if proposal.confirmCount
-  // was already set (i.e. the auto-confirm has been skipped).
-  // NOTE: simplest safe approach — use the log index: if this Confirmed log index
-  // is higher than the Proposed log (which we don't store), skip.
-  // For now we increment and document the known +1 offset for the auto-confirm;
-  // a separate reconciliation query on-chain can validate if needed.
+  // propose() emits Confirmed in the same tx as Proposed (proposer auto-confirm).
+  // handleProposed already initialises confirmCount = 1 for that confirm, so we
+  // skip this event when it originates from the same transaction to avoid
+  // double-counting.
+  if (event.transaction.hash == proposal.txHash) return;
+
   proposal.confirmCount = proposal.confirmCount + 1;
   proposal.save();
 }

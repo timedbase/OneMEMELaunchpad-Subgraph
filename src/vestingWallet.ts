@@ -6,14 +6,6 @@ import {
 } from "../generated/VestingWallet/VestingWallet";
 import { VestingSchedule, VestingClaim } from "../generated/schema";
 
-// VestingSchedule ID = token address + beneficiary address (40 bytes total).
-function scheduleId(token: Uint8Array, beneficiary: Uint8Array): Uint8Array {
-  const id = new Uint8Array(40);
-  for (let i = 0; i < 20; i++) id[i]      = token[i];
-  for (let i = 0; i < 20; i++) id[20 + i] = beneficiary[i];
-  return id;
-}
-
 export function handleVestingAdded(event: VestingAdded): void {
   const id = event.params.token.concat(event.params.beneficiary);
 
@@ -28,6 +20,7 @@ export function handleVestingAdded(event: VestingAdded): void {
   schedule.voided      = false;
   schedule.createdAtTimestamp   = event.block.timestamp;
   schedule.createdAtBlockNumber = event.block.number;
+  schedule.txHash               = event.transaction.hash;
   schedule.save();
 }
 

@@ -1,4 +1,4 @@
-import { BigInt, Bytes } from "@graphprotocol/graph-ts";
+import { BigInt } from "@graphprotocol/graph-ts";
 import { Token as TokenContract } from "../generated/LaunchpadFactory/Token";
 import {
   TokenCreated,
@@ -88,11 +88,11 @@ export function handleTimelockQueued(event: TimelockQueued): void {
   if (action == null) {
     action = new TimelockAction(id);
   }
-  action.factory            = getOrCreateFactory().id;
-  action.actionId           = id;
-  action.executeAfter       = event.params.executeAfter;
-  action.executed           = false;
-  action.cancelled          = false;
+  action.factory      = getOrCreateFactory().id;
+  action.executeAfter = event.params.executeAfter;
+  // Always reset — an action may be re-queued after being cancelled.
+  action.executed  = false;
+  action.cancelled = false;
   action.queuedAtTimestamp   = event.block.timestamp;
   action.queuedAtBlockNumber = event.block.number;
   action.queuedTxHash        = event.transaction.hash;

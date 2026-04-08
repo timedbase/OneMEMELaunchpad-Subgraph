@@ -30,10 +30,9 @@ type Factory @entity {
 A timelocked governance action queued on the factory.
 """
 type TimelockAction @entity {
-  " actionId hex "
+  " bytes32 actionId — also serves as the entity id "
   id: Bytes!
   factory: Factory!
-  actionId: Bytes!
   executeAfter: BigInt!
   executed: Boolean!
   cancelled: Boolean!
@@ -150,6 +149,7 @@ type VestingSchedule @entity {
 
   createdAtTimestamp: BigInt!
   createdAtBlockNumber: BigInt!
+  txHash: Bytes!
 
   claims: [VestingClaim!]! @derivedFrom(field: "schedule")
 }
