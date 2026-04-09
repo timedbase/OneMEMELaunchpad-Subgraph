@@ -85,9 +85,19 @@ type Token @entity {
   createdAtBlockNumber: BigInt!
   txHash: Bytes!
 
-  trades: [Trade!]! @derivedFrom(field: "token")
-  migrations: [Migration!]! @derivedFrom(field: "token")
+  " IPFS metadata (resolved at token creation) "
+  metaUri:     String
+  description: String
+  image:       String
+  website:     String
+  twitter:     String
+  telegram:    String
+
+  trades:         [Trade!]!         @derivedFrom(field: "token")
+  migrations:     [Migration!]!     @derivedFrom(field: "token")
   vestingSchedules: [VestingSchedule!]! @derivedFrom(field: "token")
+  snapshots:      [TokenSnapshot!]! @derivedFrom(field: "token")
+  holders:        [Holder!]!        @derivedFrom(field: "token")
 }
 
 """
@@ -165,6 +175,37 @@ type VestingClaim @entity {
   timestamp: BigInt!
   blockNumber: BigInt!
   txHash: Bytes!
+}
+
+"""
+Per-block OHLCV snapshot for TradingView charts.
+openRaisedBNB / closeRaisedBNB approximate open/close price via pool depth.
+"""
+type TokenSnapshot @entity {
+  " {tokenAddress}-{blockNumber} "
+  id: Bytes!
+  token: Token!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  openRaisedBNB: BigInt!
+  closeRaisedBNB: BigInt!
+  volumeBNB: BigInt!
+  buyCount: Int!
+  sellCount: Int!
+}
+
+"""
+ERC-20 holder balance for a token, updated via Transfer events.
+Only tracked while the token is in the bonding-curve phase (migrated = false).
+"""
+type Holder @entity {
+  " token address + holder address (concatenated) "
+  id: Bytes!
+  token: Token!
+  address: Bytes!
+  balance: BigInt!
+  lastUpdatedBlock: BigInt!
+  lastUpdatedTimestamp: BigInt!
 }
 
 # ─── Peripheral Contracts ────────────────────────────────────────────────────

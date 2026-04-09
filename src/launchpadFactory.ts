@@ -1,5 +1,6 @@
-import { BigInt } from "@graphprotocol/graph-ts";
+import { BigInt, Bytes, ipfs, json, JSONValueKind, log } from "@graphprotocol/graph-ts";
 import { Token as TokenContract } from "../generated/LaunchpadFactory/Token";
+import { MemeToken } from "../generated/templates";
 import {
   TokenCreated,
   DefaultParamsUpdated,
@@ -14,8 +15,48 @@ import {
 import { Token, TimelockAction } from "../generated/schema";
 import { getOrCreateFactory, detectTokenType } from "./utils";
 
+function loadIpfsMetadata(token: Token, uri: string): void {
+  let cid = uri;
+  if (uri.startsWith("ipfs://"))    cid = uri.slice(7);
+  else if (uri.startsWith("ipfs/")) cid = uri.slice(5);
+  const data = ipfs.cat(cid);
+  if (data) {
+    const result = json.try_fromBytes(data as Bytes);
+    if (!result.isError) {
+      if (result.value.kind == JSONValueKind.OBJECT) {
+        const obj = result.value.toObject();
+        const desc = obj.get("description");
+        if (desc) {
+          if (desc.kind == JSONValueKind.STRING) token.description = desc.toString();
+        }
+        const img = obj.get("image");
+        if (img) {
+          if (img.kind == JSONValueKind.STRING) token.image = img.toString();
+        }
+        const web = obj.get("website");
+        if (web) {
+          if (web.kind == JSONValueKind.STRING) token.website = web.toString();
+        }
+        const socialsVal = obj.get("socials");
+        if (socialsVal) {
+          if (socialsVal.kind == JSONValueKind.OBJECT) {
+            const socials = socialsVal.toObject();
+            const tw = socials.get("twitter");
+            if (tw) {
+              if (tw.kind == JSONValueKind.STRING) token.twitter = tw.toString();
+            }
+            const tg = socials.get("telegram");
+            if (tg) {
+              if (tg.kind == JSONValueKind.STRING) token.telegram = tg.toString();
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 export function handleTokenCreated(event: TokenCreated): void {
-  // Determine which factory function was called via the tx selector.
   const tokenType = detectTokenType(event.transaction.input);
 
   const token = new Token(event.params.token);
@@ -36,16 +77,24 @@ export function handleTokenCreated(event: TokenCreated): void {
   token.createdAtBlockNumber = event.block.number;
   token.txHash = event.transaction.hash;
 
-  // Fetch name() and symbol() from the token contract.
   const tokenContract = TokenContract.bind(event.params.token);
-  const nameResult   = tokenContract.try_name();
-  const symbolResult = tokenContract.try_symbol();
+  const nameResult    = tokenContract.try_name();
+  const symbolResult  = tokenContract.try_symbol();
   if (!nameResult.reverted)   token.name   = nameResult.value;
   if (!symbolResult.reverted) token.symbol = symbolResult.value;
 
-  token.save();
+  const metaResult = tokenContract.try_metaURI();
+  if (!metaResult.reverted) {
+    const uri = metaResult.value;
+    if (uri.length > 0) {
+      token.metaUri = uri;
+      loadIpfsMetadata(token, uri);
+    }
+  }
 
-  // Update factory-wide stats.
+  token.save();
+  MemeToken.create(event.params.token);
+
   const factory = getOrCreateFactory();
   factory.totalTokensCreated = factory.totalTokensCreated.plus(BigInt.fromI32(1));
   if (tokenType == "STANDARD")    factory.totalStandardTokens   = factory.totalStandardTokens.plus(BigInt.fromI32(1));
@@ -73,14 +122,8 @@ export function handleOwnershipTransferred(event: OwnershipTransferred): void {
   factory.save();
 }
 
-// Manager events — no schema entity needed, but we keep handlers for completeness.
-export function handleManagerAdded(_event: ManagerAdded): void {
-  // No-op — manager lists are queryable on-chain; not persisted in the subgraph.
-}
-
-export function handleManagerRemoved(_event: ManagerRemoved): void {
-  // No-op
-}
+export function handleManagerAdded(_event: ManagerAdded): void {}
+export function handleManagerRemoved(_event: ManagerRemoved): void {}
 
 export function handleTimelockQueued(event: TimelockQueued): void {
   const id = event.params.actionId;
@@ -90,7 +133,6 @@ export function handleTimelockQueued(event: TimelockQueued): void {
   }
   action.factory      = getOrCreateFactory().id;
   action.executeAfter = event.params.executeAfter;
-  // Always reset — an action may be re-queued after being cancelled.
   action.executed  = false;
   action.cancelled = false;
   action.queuedAtTimestamp   = event.block.timestamp;

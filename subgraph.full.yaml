@@ -66,6 +66,7 @@ dataSources:
         - Trade
         - Migration
         - Factory
+        - TokenSnapshot
       abis:
         - name: BondingCurve
           file: ./abis/BondingCurve.json
@@ -199,3 +200,24 @@ dataSources:
         - event: Cancelled(indexed uint256,indexed address)
           handler: handleCancelled
       file: ./src/peripheral/vault.ts
+
+templates:
+  - kind: ethereum
+    name: MemeToken
+    network: bsc
+    source:
+      abi: MemeToken
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Holder
+        - Token
+      abis:
+        - name: MemeToken
+          file: ./abis/MemeToken.json
+      eventHandlers:
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleTransfer
+      file: ./src/memeToken.ts
