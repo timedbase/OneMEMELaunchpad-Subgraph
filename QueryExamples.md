@@ -22,6 +22,8 @@ Replace placeholder addresses (`0xTOKEN_ADDRESS`, etc.) with real checksummed he
 12. [Analytics & combined queries](#analytics--combined-queries)
 13. [Pagination](#pagination)
 
+**New in this revision:** `Token` now includes IPFS-resolved metadata fields — `description`, `image`, `website`, `twitter`, `telegram` — alongside the raw `metaUri`. See [Token metadata (IPFS-resolved fields)](#token-metadata-ipfs-resolved-fields) and [Tokens with a website link](#tokens-with-a-website-link-metadata-resolved).
+
 ---
 
 ## Factory
@@ -125,6 +127,54 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
     createdAtBlockNumber
     txHash
     metaUri
+    description
+    image
+    website
+    twitter
+    telegram
+  }
+}
+```
+
+### Token metadata (IPFS-resolved fields)
+
+```graphql
+{
+  token(id: "0xTOKEN_ADDRESS") {
+    id
+    name
+    symbol
+    metaUri
+    description
+    image
+    website
+    twitter
+    telegram
+  }
+}
+```
+
+### Tokens with a website link (metadata resolved)
+
+```graphql
+{
+  tokens(
+    where: { website_not: null }
+    orderBy: createdAtTimestamp
+    orderDirection: desc
+    first: 50
+  ) {
+    id
+    name
+    symbol
+    metaUri
+    description
+    image
+    website
+    twitter
+    telegram
+    raisedBNB
+    migrated
   }
 }
 ```
@@ -1201,6 +1251,11 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
     raisedBNB
     migrated
     metaUri
+    description
+    image
+    website
+    twitter
+    telegram
     snapshots(orderBy: blockNumber, orderDirection: desc, first: 20) {
       blockNumber
       timestamp
@@ -1245,6 +1300,12 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
     totalVolumeBNBBuy
     totalVolumeBNBSell
     createdAtTimestamp
+    metaUri
+    description
+    image
+    website
+    twitter
+    telegram
     trades(orderBy: timestamp, orderDirection: desc, first: 50) {
       type
       trader

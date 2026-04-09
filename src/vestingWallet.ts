@@ -17,7 +17,9 @@ export function handleVestingAdded(event: VestingAdded): void {
   schedule.token       = event.params.token;
   schedule.beneficiary = event.params.beneficiary;
   schedule.amount      = event.params.amount;
-  schedule.voided      = false;
+  schedule.voided       = false;
+  schedule.burnedOnVoid = null;
+  schedule.voidedTxHash = null;
   schedule.createdAtTimestamp   = event.block.timestamp;
   schedule.createdAtBlockNumber = event.block.number;
   schedule.txHash               = event.transaction.hash;

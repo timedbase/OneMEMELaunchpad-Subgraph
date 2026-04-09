@@ -87,8 +87,15 @@ type Token @entity {
   createdAtBlockNumber: BigInt!
   txHash: Bytes!
 
-  " Raw IPFS URI from contract (not resolved by the subgraph) "
+  " Raw IPFS URI from contract "
   metaUri: String
+
+  " Resolved from IPFS metadata JSON "
+  description: String
+  image: String
+  website: String
+  twitter: String
+  telegram: String
 
   trades:         [Trade!]!         @derivedFrom(field: "token")
   migrations:     [Migration!]!     @derivedFrom(field: "token")

@@ -1,6 +1,9 @@
 specVersion: 1.0.0
 description: OneMEME Launchpad subgraph — tracks token launches, bonding-curve trades, migrations, and creator vesting on BNB Smart Chain
 repository: https://github.com/timedbase/OneMEMELaunchpad-Subgraph
+features:
+  - ipfsOnEthereumContracts
+
 indexerHints:
   prune: auto
 
