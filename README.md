@@ -14,15 +14,17 @@ The Graph subgraph for the [OneMEME Launchpad](https://github.com/timedbase/OneM
 abis/
 ├── BondingCurve.json
 ├── LaunchpadFactory.json
-├── Token.json                  minimal ERC-20 (name / symbol view calls)
+├── MemeToken.json              Transfer event ABI for the dynamic template
+├── Token.json                  minimal ERC-20 (name / symbol / metaURI view calls)
 ├── VestingWallet.json
 └── peripheral/
     ├── Collector.json
     ├── OneMEMEBB.json
     └── Vault.json
 src/
-├── bondingCurve.ts             buy / sell / migrate handlers
+├── bondingCurve.ts             buy / sell / migrate handlers + per-block OHLCV snapshots
 ├── launchpadFactory.ts         token creation, governance, timelock handlers
+├── memeToken.ts                Transfer handler for MemeToken dynamic template (Holder tracking)
 ├── utils.ts                    Factory singleton + token-type detection
 ├── vestingWallet.ts            vesting schedule + claim handlers
 └── peripheral/
@@ -101,24 +103,26 @@ npm run deploy-local:full     # core + peripheral
 
 | Entity | Description |
 |---|---|
-| `Factory` | Singleton. Global stats and current factory settings (creation fee, default params, owner). |
-| `Token` | One per launched token. Holds ERC-20 metadata, bonding-curve params, live `raisedBNB`, trade counts, migration state. |
-| `Trade` | One per `TokenBought` or `TokenSold` event. Type is `BUY` or `SELL`. |
+| `Factory` | Singleton. Global stats (`totalTokensCreated`, per-type counters, `totalBuys/Sells/Migrations`) and current factory settings (creation fee, default params, owner). |
+| `Token` | One per launched token. ERC-20 metadata (`name`, `symbol`, `metaUri`), bonding-curve params, live `raisedBNB`, trade counts, migration state. |
+| `Trade` | One per `TokenBought` or `TokenSold` event. `type` is `BUY` or `SELL`. |
 | `Migration` | One per `TokenMigrated` event. Stores the PancakeSwap pair address and liquidity amounts. |
-| `VestingSchedule` | One per token × beneficiary. Tracks `amount`, `claimed`, `voided` state. |
+| `VestingSchedule` | One per token × beneficiary. Tracks `amount`, `claimed`, `voided`, `burnedOnVoid`, and `voidedTxHash`. |
 | `VestingClaim` | One per `Claimed` event. Linked to its `VestingSchedule`. |
-| `TimelockAction` | One per timelocked governance action. The entity `id` IS the `bytes32 actionId`. Re-queuing after cancellation resets `executed`/`cancelled` correctly. |
+| `TimelockAction` | One per timelocked governance action. `id` is the `bytes32 actionId`. Stores `queuedTxHash`, `executedTxHash`, and `cancelledTxHash` for full provenance. Re-queuing resets `executed`/`cancelled`. |
+| `TokenSnapshot` | One per token × block. Per-block OHLCV: `openRaisedBNB`, `closeRaisedBNB`, `volumeBNB`, `buyCount`, `sellCount`. Updated on every trade in the block. |
+| `Holder` | One per token × address. ERC-20 balance tracked via `Transfer` events while the token is in the bonding-curve phase (`migrated = false`). |
 
 ### Peripheral entities *(subgraph.full.yaml only)*
 
 | Entity | Description |
 |---|---|
-| `BuyBack` | Singleton per contract. Tracks router, buyToken, cooldown, cumulative BNB spent. |
+| `BuyBack` | Singleton per contract. Tracks `router`, `buyToken`, `cooldown`, cumulative BNB spent, and `lastBuyAt` (nullable — null until first buyback). |
 | `BuyBackEvent` | One per `BoughtBack` event. |
 | `Collector` | Singleton per contract. Tracks six recipient addresses and cumulative BNB dispersed. |
 | `DisperseEvent` | One per `Dispersed` event. |
 | `VaultContract` | Singleton per contract. Tracks proposal count. |
-| `VaultProposal` | One per `Proposed` event. Tracks `confirmCount`, `executed`, `cancelled`. The proposer's auto-confirm is handled correctly — it is counted once in `handleProposed` and the matching `Confirmed` event in the same transaction is skipped. |
+| `VaultProposal` | One per `Proposed` event. Tracks `confirmCount`, `executed`, `cancelled`, `executedTxHash`, and `cancelledTxHash`. The proposer's auto-confirm is counted once in `handleProposed`; the duplicate `Confirmed` event in the same transaction is skipped. |
 
 ---
 

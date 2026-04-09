@@ -24,6 +24,7 @@ dataSources:
       entities:
         - Factory
         - Token
+        - TimelockAction
       abis:
         - name: LaunchpadFactory
           file: ./abis/LaunchpadFactory.json
