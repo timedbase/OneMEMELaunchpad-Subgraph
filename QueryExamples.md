@@ -60,7 +60,7 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
     creationFee
     defaultVirtualBNB
     defaultMigrationTarget
-    pendingTimelocks(where: { executed: false, cancelled: false }) {
+    timelockActions(where: { executed: false, cancelled: false }) {
       id
       executeAfter
       queuedAtTimestamp
@@ -1391,7 +1391,7 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
     defaultVirtualBNB
     defaultMigrationTarget
     owner
-    pendingTimelocks(where: { executed: false, cancelled: false }) {
+    timelockActions(where: { executed: false, cancelled: false }) {
       id
       executeAfter
       queuedAtTimestamp

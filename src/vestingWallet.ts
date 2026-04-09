@@ -12,11 +12,11 @@ export function handleVestingAdded(event: VestingAdded): void {
   let schedule = VestingSchedule.load(id);
   if (schedule == null) {
     schedule = new VestingSchedule(id);
+    schedule.claimed = BigInt.fromI32(0); // only initialise on first creation
   }
   schedule.token       = event.params.token;
   schedule.beneficiary = event.params.beneficiary;
   schedule.amount      = event.params.amount;
-  schedule.claimed     = BigInt.fromI32(0);
   schedule.voided      = false;
   schedule.createdAtTimestamp   = event.block.timestamp;
   schedule.createdAtBlockNumber = event.block.number;

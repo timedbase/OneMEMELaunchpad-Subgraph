@@ -54,7 +54,8 @@ export function handleConfirmed(event: Confirmed): void {
   // handleProposed already initialises confirmCount = 1 for that confirm, so we
   // skip this event when it originates from the same transaction to avoid
   // double-counting.
-  if (event.transaction.hash == proposal.txHash) return;
+  // Note: Bytes == Bytes is a pointer comparison in AS — must compare hex strings.
+  if (event.transaction.hash.toHexString() == proposal.txHash.toHexString()) return;
 
   proposal.confirmCount = proposal.confirmCount + 1;
   proposal.save();

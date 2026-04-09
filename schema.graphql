@@ -22,8 +22,7 @@ type Factory @entity {
   defaultMigrationTarget: BigInt!
   owner: Bytes!
 
-  " Timelock actions — serialised as JSON string array for simplicity "
-  pendingTimelocks: [TimelockAction!]! @derivedFrom(field: "factory")
+  timelockActions: [TimelockAction!]! @derivedFrom(field: "factory")
 }
 
 """
