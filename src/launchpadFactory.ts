@@ -1,4 +1,4 @@
-import { BigInt, Bytes, ipfs, json, JSONValueKind, log } from "@graphprotocol/graph-ts";
+import { BigInt } from "@graphprotocol/graph-ts";
 import { Token as TokenContract } from "../generated/LaunchpadFactory/Token";
 import { MemeToken } from "../generated/templates";
 import {
@@ -15,84 +15,6 @@ import {
 import { Token, TimelockAction } from "../generated/schema";
 import { getOrCreateFactory, detectTokenType } from "./utils";
 
-function stripIpfsCid(raw: string): string {
-  if (raw.startsWith("ipfs://")) return raw.slice(7);
-  if (raw.startsWith("ipfs/"))   return raw.slice(5);
-  const ipfsIdx = raw.indexOf("/ipfs/");
-  if (ipfsIdx >= 0)              return raw.slice(ipfsIdx + 6);
-  return raw;
-}
-
-function loadIpfsMetadata(token: Token, uri: string): void {
-  const cid  = stripIpfsCid(uri);
-  const data = ipfs.cat(cid);
-  if (data) {
-    const result = json.try_fromBytes(data as Bytes);
-    if (!result.isError) {
-      if (result.value.kind == JSONValueKind.OBJECT) {
-        const obj = result.value.toObject();
-
-        // name / symbol — IPFS takes precedence over contract-call values
-        const nameVal = obj.get("name");
-        if (nameVal) {
-          if (nameVal.kind == JSONValueKind.STRING) token.name = nameVal.toString();
-        }
-        const symbolVal = obj.get("symbol");
-        if (symbolVal) {
-          if (symbolVal.kind == JSONValueKind.STRING) token.symbol = symbolVal.toString();
-        }
-
-        // description
-        const desc = obj.get("description");
-        if (desc) {
-          if (desc.kind == JSONValueKind.STRING) token.description = desc.toString();
-        }
-
-        // image — store bare CID only
-        const img = obj.get("image");
-        if (img) {
-          if (img.kind == JSONValueKind.STRING) token.image = stripIpfsCid(img.toString());
-        }
-
-        // website — flat field, may also appear nested under socials
-        const web = obj.get("website");
-        if (web) {
-          if (web.kind == JSONValueKind.STRING) token.website = web.toString();
-        }
-
-        // twitter / telegram — flat fields first, nested socials object overwrites
-        const twFlat = obj.get("twitter");
-        if (twFlat) {
-          if (twFlat.kind == JSONValueKind.STRING) token.twitter = twFlat.toString();
-        }
-        const tgFlat = obj.get("telegram");
-        if (tgFlat) {
-          if (tgFlat.kind == JSONValueKind.STRING) token.telegram = tgFlat.toString();
-        }
-
-        // nested socials object — overwrites flat values if present
-        const socialsVal = obj.get("socials");
-        if (socialsVal) {
-          if (socialsVal.kind == JSONValueKind.OBJECT) {
-            const socials = socialsVal.toObject();
-            const tw = socials.get("twitter");
-            if (tw) {
-              if (tw.kind == JSONValueKind.STRING) token.twitter = tw.toString();
-            }
-            const tg = socials.get("telegram");
-            if (tg) {
-              if (tg.kind == JSONValueKind.STRING) token.telegram = tg.toString();
-            }
-            const webNested = socials.get("website");
-            if (webNested) {
-              if (webNested.kind == JSONValueKind.STRING) token.website = webNested.toString();
-            }
-          }
-        }
-      }
-    }
-  }
-}
 
 export function handleTokenCreated(event: TokenCreated): void {
   const tokenType = detectTokenType(event.transaction.input);
@@ -123,11 +45,7 @@ export function handleTokenCreated(event: TokenCreated): void {
 
   const metaResult = tokenContract.try_metaURI();
   if (!metaResult.reverted) {
-    const uri = metaResult.value;
-    if (uri.length > 0) {
-      token.metaUri = uri;
-      loadIpfsMetadata(token, uri);
-    }
+    if (metaResult.value.length > 0) token.metaUri = metaResult.value;
   }
 
   token.save();
