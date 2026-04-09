@@ -69,6 +69,7 @@ dataSources:
         - Migration
         - Factory
         - TokenSnapshot
+        - TokenPeriodStats
       abis:
         - name: BondingCurve
           file: ./abis/BondingCurve.json

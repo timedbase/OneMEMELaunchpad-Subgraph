@@ -4,6 +4,8 @@ GraphQL query reference for the OneMEME Launchpad subgraph.
 All fields are verified against [`schema.graphql`](schema.graphql).  
 Replace placeholder addresses (`0xTOKEN_ADDRESS`, etc.) with real checksummed hex.
 
+BNB amounts are stored in wei — divide by `1e18` to get BNB.
+
 ---
 
 ## Table of contents
@@ -19,10 +21,9 @@ Replace placeholder addresses (`0xTOKEN_ADDRESS`, etc.) with real checksummed he
 9. [Peripheral — Vault](#peripheral--vault)
 10. [Token Snapshots (OHLCV)](#token-snapshots-ohlcv)
 11. [Holders](#holders)
-12. [Analytics & combined queries](#analytics--combined-queries)
-13. [Pagination](#pagination)
-
-**New in this revision:** `Token` now includes IPFS-resolved metadata fields — `description`, `image`, `website`, `twitter`, `telegram` — alongside the raw `metaUri`. See [Token metadata (IPFS-resolved fields)](#token-metadata-ipfs-resolved-fields) and [Tokens with a website link](#tokens-with-a-website-link-metadata-resolved).
+12. [Trending Tokens](#trending-tokens)
+13. [Analytics & combined queries](#analytics--combined-queries)
+14. [Pagination](#pagination)
 
 ---
 
@@ -51,6 +52,31 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "factories": [
+      {
+        "totalTokensCreated": "142",
+        "totalStandardTokens": "89",
+        "totalTaxTokens": "31",
+        "totalReflectionTokens": "18",
+        "totalUnknownTokens": "4",
+        "totalBuys": "9871",
+        "totalSells": "3204",
+        "totalMigrations": "11",
+        "creationFee": "100000000000000000",
+        "defaultVirtualBNB": "1000000000000000000",
+        "defaultMigrationTarget": "20000000000000000000",
+        "owner": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4"
+      }
+    ]
+  }
+}
+```
+
 ### Factory with pending governance actions
 
 ```graphql
@@ -68,6 +94,33 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
       executeAfter
       queuedAtTimestamp
     }
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "factories": [
+      {
+        "totalTokensCreated": "142",
+        "totalBuys": "9871",
+        "totalSells": "3204",
+        "totalMigrations": "11",
+        "creationFee": "100000000000000000",
+        "defaultVirtualBNB": "1000000000000000000",
+        "defaultMigrationTarget": "20000000000000000000",
+        "timelockActions": [
+          {
+            "id": "0x1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d",
+            "executeAfter": "1700172800",
+            "queuedAtTimestamp": "1700086400"
+          }
+        ]
+      }
+    ]
   }
 }
 ```
@@ -93,6 +146,45 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
     buysCount
     sellsCount
     createdAtTimestamp
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokens": [
+      {
+        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+        "name": "PepeMoon",
+        "symbol": "PPEM",
+        "tokenType": "STANDARD",
+        "creator": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "totalSupply": "1000000000000000000000000000",
+        "raisedBNB": "5200000000000000000",
+        "migrationTarget": "20000000000000000000",
+        "migrated": false,
+        "buysCount": "84",
+        "sellsCount": "21",
+        "createdAtTimestamp": "1700086400"
+      },
+      {
+        "id": "0x9988776655443322998877665544332299887766",
+        "name": "DogeKing",
+        "symbol": "DGKG",
+        "tokenType": "TAX",
+        "creator": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
+        "totalSupply": "1000000000000000000000000000",
+        "raisedBNB": "1800000000000000000",
+        "migrationTarget": "20000000000000000000",
+        "migrated": false,
+        "buysCount": "33",
+        "sellsCount": "7",
+        "createdAtTimestamp": "1700000000"
+      }
+    ]
   }
 }
 ```
@@ -136,6 +228,47 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "token": {
+      "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+      "name": "PepeMoon",
+      "symbol": "PPEM",
+      "tokenType": "STANDARD",
+      "creator": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+      "totalSupply": "1000000000000000000000000000",
+      "virtualBNB": "1000000000000000000",
+      "migrationTarget": "20000000000000000000",
+      "antibotEnabled": true,
+      "tradingBlock": "38120000",
+      "raisedBNB": "5200000000000000000",
+      "migrated": false,
+      "pair": null,
+      "migrationBNB": null,
+      "migrationLiquidityTokens": null,
+      "migratedAtTimestamp": null,
+      "migratedAtBlockNumber": null,
+      "buysCount": "84",
+      "sellsCount": "21",
+      "totalVolumeBNBBuy": "8400000000000000000",
+      "totalVolumeBNBSell": "1050000000000000000",
+      "createdAtTimestamp": "1700086400",
+      "createdAtBlockNumber": "38120000",
+      "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
+      "metaUri": "ipfs://QmPepeMoonMetaXYZ123456789abcdef",
+      "description": "The moon-bound Pepe token on OneMEME.",
+      "image": "QmPepeMoonImageXYZ123456789abcdef",
+      "website": "https://pepemoon.io",
+      "twitter": "https://twitter.com/pepemoon",
+      "telegram": "https://t.me/pepemoon"
+    }
+  }
+}
+```
+
 ### Token metadata (IPFS-resolved fields)
 
 ```graphql
@@ -150,6 +283,26 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
     website
     twitter
     telegram
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "token": {
+      "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+      "name": "PepeMoon",
+      "symbol": "PPEM",
+      "metaUri": "ipfs://QmPepeMoonMetaXYZ123456789abcdef",
+      "description": "The moon-bound Pepe token on OneMEME.",
+      "image": "QmPepeMoonImageXYZ123456789abcdef",
+      "website": "https://pepemoon.io",
+      "twitter": "https://twitter.com/pepemoon",
+      "telegram": "https://t.me/pepemoon"
+    }
   }
 }
 ```
@@ -175,6 +328,30 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
     telegram
     raisedBNB
     migrated
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokens": [
+      {
+        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+        "name": "PepeMoon",
+        "symbol": "PPEM",
+        "metaUri": "ipfs://QmPepeMoonMetaXYZ123456789abcdef",
+        "description": "The moon-bound Pepe token on OneMEME.",
+        "image": "QmPepeMoonImageXYZ123456789abcdef",
+        "website": "https://pepemoon.io",
+        "twitter": "https://twitter.com/pepemoon",
+        "telegram": "https://t.me/pepemoon",
+        "raisedBNB": "5200000000000000000",
+        "migrated": false
+      }
+    ]
   }
 }
 ```
@@ -205,6 +382,32 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokens": [
+      {
+        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+        "name": "PepeMoon",
+        "symbol": "PPEM",
+        "tokenType": "STANDARD",
+        "raisedBNB": "5200000000000000000",
+        "migrationTarget": "20000000000000000000",
+        "migrated": false,
+        "pair": null,
+        "buysCount": "84",
+        "sellsCount": "21",
+        "totalVolumeBNBBuy": "8400000000000000000",
+        "totalVolumeBNBSell": "1050000000000000000",
+        "createdAtTimestamp": "1700086400"
+      }
+    ]
+  }
+}
+```
+
 ### Tokens still on the bonding curve (not yet migrated)
 
 ```graphql
@@ -222,6 +425,45 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
     sellsCount
     creator
     createdAtTimestamp
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokens": [
+      {
+        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+        "name": "PepeMoon",
+        "symbol": "PPEM",
+        "tokenType": "STANDARD",
+        "raisedBNB": "5200000000000000000",
+        "migrationTarget": "20000000000000000000",
+        "antibotEnabled": true,
+        "tradingBlock": "38120000",
+        "buysCount": "84",
+        "sellsCount": "21",
+        "creator": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "createdAtTimestamp": "1700086400"
+      },
+      {
+        "id": "0x9988776655443322998877665544332299887766",
+        "name": "DogeKing",
+        "symbol": "DGKG",
+        "tokenType": "TAX",
+        "raisedBNB": "1800000000000000000",
+        "migrationTarget": "20000000000000000000",
+        "antibotEnabled": false,
+        "tradingBlock": "0",
+        "buysCount": "33",
+        "sellsCount": "7",
+        "creator": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
+        "createdAtTimestamp": "1700000000"
+      }
+    ]
   }
 }
 ```
@@ -247,6 +489,31 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokens": [
+      {
+        "id": "0x1122334455667788112233445566778811223344",
+        "name": "ShibaRocket",
+        "symbol": "SHRKT",
+        "tokenType": "STANDARD",
+        "pair": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
+        "migrationBNB": "20000000000000000000",
+        "migrationLiquidityTokens": "500000000000000000000000000",
+        "migratedAtTimestamp": "1699950000",
+        "totalVolumeBNBBuy": "32000000000000000000",
+        "totalVolumeBNBSell": "8500000000000000000",
+        "buysCount": "312",
+        "sellsCount": "97"
+      }
+    ]
+  }
+}
+```
+
 ### Tokens by type
 
 ```graphql
@@ -264,6 +531,26 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
     migrated
     creator
     createdAtTimestamp
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokens": [
+      {
+        "id": "0x9988776655443322998877665544332299887766",
+        "name": "DogeKing",
+        "symbol": "DGKG",
+        "raisedBNB": "1800000000000000000",
+        "migrated": false,
+        "creator": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
+        "createdAtTimestamp": "1700000000"
+      }
+    ]
   }
 }
 ```
@@ -292,6 +579,33 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokens": [
+      {
+        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+        "name": "PepeMoon",
+        "symbol": "PPEM",
+        "raisedBNB": "17500000000000000000",
+        "migrationTarget": "20000000000000000000",
+        "buysCount": "210"
+      },
+      {
+        "id": "0x9988776655443322998877665544332299887766",
+        "name": "DogeKing",
+        "symbol": "DGKG",
+        "raisedBNB": "16200000000000000000",
+        "migrationTarget": "20000000000000000000",
+        "buysCount": "183"
+      }
+    ]
+  }
+}
+```
+
 ### Fresh launches — tokens with zero trades yet
 
 ```graphql
@@ -308,6 +622,26 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokens": [
+      {
+        "id": "0x5566778899aabbcc5566778899aabbcc55667788",
+        "name": "MoonFrog",
+        "symbol": "MFRG",
+        "tokenType": "STANDARD",
+        "creator": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "createdAtTimestamp": "1700090000",
+        "txHash": "0xdead1234dead1234dead1234dead1234dead1234dead1234dead1234dead1234"
+      }
+    ]
+  }
+}
+```
+
 ### Tokens with antibot enabled
 
 ```graphql
@@ -320,6 +654,26 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     createdAtBlockNumber
     raisedBNB
     migrated
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokens": [
+      {
+        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+        "name": "PepeMoon",
+        "symbol": "PPEM",
+        "tradingBlock": "38120005",
+        "createdAtBlockNumber": "38120000",
+        "raisedBNB": "5200000000000000000",
+        "migrated": false
+      }
+    ]
   }
 }
 ```
@@ -343,6 +697,33 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     tokenType
     creator
     createdAtTimestamp
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokens": [
+      {
+        "id": "0x9988776655443322998877665544332299887766",
+        "name": "DogeKing",
+        "symbol": "DGKG",
+        "tokenType": "TAX",
+        "creator": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
+        "createdAtTimestamp": "1700000000"
+      },
+      {
+        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+        "name": "PepeMoon",
+        "symbol": "PPEM",
+        "tokenType": "STANDARD",
+        "creator": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "createdAtTimestamp": "1700086400"
+      }
+    ]
   }
 }
 ```
@@ -371,6 +752,51 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "trades": [
+      {
+        "id": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd12340000",
+        "token": {
+          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+          "name": "PepeMoon",
+          "symbol": "PPEM"
+        },
+        "trader": "0xccddee001122ccddee001122ccddee001122ccdd",
+        "type": "BUY",
+        "bnbAmount": "200000000000000000",
+        "tokenAmount": "4850000000000000000000000",
+        "tokensToDead": "0",
+        "raisedBNBAfter": "5200000000000000000",
+        "timestamp": "1700086500",
+        "blockNumber": "38120050",
+        "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+      },
+      {
+        "id": "0xbeef5678beef5678beef5678beef5678beef5678beef5678beef5678beef56780001",
+        "token": {
+          "id": "0x9988776655443322998877665544332299887766",
+          "name": "DogeKing",
+          "symbol": "DGKG"
+        },
+        "trader": "0x1234567890abcdef1234567890abcdef12345678",
+        "type": "SELL",
+        "bnbAmount": "150000000000000000",
+        "tokenAmount": "3600000000000000000000000",
+        "tokensToDead": "0",
+        "raisedBNBAfter": "1800000000000000000",
+        "timestamp": "1700086450",
+        "blockNumber": "38120040",
+        "txHash": "0xbeef5678beef5678beef5678beef5678beef5678beef5678beef5678beef5678"
+      }
+    ]
+  }
+}
+```
+
 ### Trades on a specific token
 
 ```graphql
@@ -394,6 +820,28 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "trades": [
+      {
+        "type": "BUY",
+        "trader": "0xccddee001122ccddee001122ccddee001122ccdd",
+        "bnbAmount": "200000000000000000",
+        "tokenAmount": "4850000000000000000000000",
+        "tokensToDead": "0",
+        "raisedBNBAfter": "5200000000000000000",
+        "timestamp": "1700086500",
+        "blockNumber": "38120050",
+        "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+      }
+    ]
+  }
+}
+```
+
 ### All trades by a specific wallet
 
 ```graphql
@@ -411,6 +859,32 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     raisedBNBAfter
     timestamp
     txHash
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "trades": [
+      {
+        "type": "BUY",
+        "token": {
+          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+          "name": "PepeMoon",
+          "symbol": "PPEM",
+          "tokenType": "STANDARD"
+        },
+        "bnbAmount": "500000000000000000",
+        "tokenAmount": "12000000000000000000000000",
+        "tokensToDead": "0",
+        "raisedBNBAfter": "5200000000000000000",
+        "timestamp": "1700086500",
+        "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+      }
+    ]
   }
 }
 ```
@@ -437,6 +911,31 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "trades": [
+      {
+        "token": {
+          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+          "name": "PepeMoon",
+          "symbol": "PPEM"
+        },
+        "trader": "0xccddee001122ccddee001122ccddee001122ccdd",
+        "bnbAmount": "2000000000000000000",
+        "tokenAmount": "47000000000000000000000000",
+        "tokensToDead": "0",
+        "raisedBNBAfter": "12000000000000000000",
+        "timestamp": "1700083200",
+        "txHash": "0xface1234face1234face1234face1234face1234face1234face1234face1234"
+      }
+    ]
+  }
+}
+```
+
 ### Sells only — sorted by BNB received (largest first)
 
 ```graphql
@@ -454,6 +953,30 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     raisedBNBAfter
     timestamp
     txHash
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "trades": [
+      {
+        "token": {
+          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+          "name": "PepeMoon",
+          "symbol": "PPEM"
+        },
+        "trader": "0x1234567890abcdef1234567890abcdef12345678",
+        "bnbAmount": "800000000000000000",
+        "tokenAmount": "19000000000000000000000000",
+        "raisedBNBAfter": "4400000000000000000",
+        "timestamp": "1700085000",
+        "txHash": "0xbeef5678beef5678beef5678beef5678beef5678beef5678beef5678beef5678"
+      }
+    ]
   }
 }
 ```
@@ -479,6 +1002,29 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "trades": [
+      {
+        "token": {
+          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+          "name": "PepeMoon",
+          "symbol": "PPEM"
+        },
+        "trader": "0xccddee001122ccddee001122ccddee001122ccdd",
+        "bnbAmount": "2000000000000000000",
+        "tokenAmount": "47000000000000000000000000",
+        "timestamp": "1700083200",
+        "txHash": "0xface1234face1234face1234face1234face1234face1234face1234face1234"
+      }
+    ]
+  }
+}
+```
+
 ### Trades with antibot penalty applied (tokensToDead > 0)
 
 ```graphql
@@ -495,6 +1041,30 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     bnbAmount
     timestamp
     txHash
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "trades": [
+      {
+        "token": {
+          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+          "name": "PepeMoon",
+          "symbol": "PPEM"
+        },
+        "trader": "0x9999888877776666999988887777666699998888",
+        "tokenAmount": "10000000000000000000000000",
+        "tokensToDead": "1000000000000000000000000",
+        "bnbAmount": "400000000000000000",
+        "timestamp": "1700120010",
+        "txHash": "0x1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd"
+      }
+    ]
   }
 }
 ```
@@ -521,6 +1091,29 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "trades": [
+      {
+        "type": "BUY",
+        "token": {
+          "id": "0x9988776655443322998877665544332299887766",
+          "name": "DogeKing",
+          "symbol": "DGKG"
+        },
+        "trader": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
+        "bnbAmount": "100000000000000000",
+        "tokenAmount": "2400000000000000000000000",
+        "timestamp": "1700000100"
+      }
+    ]
+  }
+}
+```
+
 ---
 
 ## Migrations
@@ -542,6 +1135,33 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "migrations": [
+      {
+        "id": "0xmigr1234migr1234migr1234migr1234migr1234migr1234migr1234migr12340000",
+        "token": {
+          "id": "0x1122334455667788112233445566778811223344",
+          "name": "ShibaRocket",
+          "symbol": "SHRKT",
+          "tokenType": "STANDARD",
+          "creator": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4"
+        },
+        "pair": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
+        "liquidityBNB": "20000000000000000000",
+        "liquidityTokens": "500000000000000000000000000",
+        "timestamp": "1699950000",
+        "blockNumber": "38100000",
+        "txHash": "0xdead5678dead5678dead5678dead5678dead5678dead5678dead5678dead5678"
+      }
+    ]
+  }
+}
+```
+
 ### Migration for a specific token
 
 ```graphql
@@ -557,6 +1177,25 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "migrations": [
+      {
+        "pair": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
+        "liquidityBNB": "20000000000000000000",
+        "liquidityTokens": "500000000000000000000000000",
+        "timestamp": "1699950000",
+        "blockNumber": "38100000",
+        "txHash": "0xdead5678dead5678dead5678dead5678dead5678dead5678dead5678dead5678"
+      }
+    ]
+  }
+}
+```
+
 ### Migrations sorted by liquidity BNB (largest first)
 
 ```graphql
@@ -567,6 +1206,29 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     liquidityBNB
     liquidityTokens
     timestamp
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "migrations": [
+      {
+        "token": {
+          "id": "0x1122334455667788112233445566778811223344",
+          "name": "ShibaRocket",
+          "symbol": "SHRKT",
+          "tokenType": "STANDARD"
+        },
+        "pair": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
+        "liquidityBNB": "20000000000000000000",
+        "liquidityTokens": "500000000000000000000000000",
+        "timestamp": "1699950000"
+      }
+    ]
   }
 }
 ```
@@ -592,6 +1254,31 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "vestingSchedules": [
+      {
+        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2f1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "token": {
+          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+          "name": "PepeMoon",
+          "symbol": "PPEM"
+        },
+        "beneficiary": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "amount": "50000000000000000000000000",
+        "claimed": "10000000000000000000000000",
+        "createdAtTimestamp": "1700086400",
+        "createdAtBlockNumber": "38120000",
+        "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+      }
+    ]
+  }
+}
+```
+
 ### Schedules for a specific beneficiary
 
 ```graphql
@@ -608,6 +1295,31 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "vestingSchedules": [
+      {
+        "token": {
+          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+          "name": "PepeMoon",
+          "symbol": "PPEM",
+          "tokenType": "STANDARD"
+        },
+        "amount": "50000000000000000000000000",
+        "claimed": "10000000000000000000000000",
+        "voided": false,
+        "burnedOnVoid": null,
+        "createdAtTimestamp": "1700086400",
+        "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+      }
+    ]
+  }
+}
+```
+
 ### Schedules for a specific token
 
 ```graphql
@@ -619,6 +1331,25 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     voided
     burnedOnVoid
     createdAtTimestamp
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "vestingSchedules": [
+      {
+        "beneficiary": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "amount": "50000000000000000000000000",
+        "claimed": "10000000000000000000000000",
+        "voided": false,
+        "burnedOnVoid": null,
+        "createdAtTimestamp": "1700086400"
+      }
+    ]
   }
 }
 ```
@@ -641,6 +1372,32 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "vestingClaims": [
+      {
+        "schedule": {
+          "token": {
+            "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+            "name": "PepeMoon",
+            "symbol": "PPEM"
+          },
+          "amount": "50000000000000000000000000",
+          "claimed": "10000000000000000000000000"
+        },
+        "amount": "10000000000000000000000000",
+        "timestamp": "1700200000",
+        "blockNumber": "38160000",
+        "txHash": "0xclaim123claim123claim123claim123claim123claim123claim123claim123"
+      }
+    ]
+  }
+}
+```
+
 ### All claims on a specific token
 
 ```graphql
@@ -654,6 +1411,27 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     amount
     timestamp
     txHash
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "vestingClaims": [
+      {
+        "schedule": {
+          "beneficiary": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+          "amount": "50000000000000000000000000",
+          "claimed": "10000000000000000000000000"
+        },
+        "amount": "10000000000000000000000000",
+        "timestamp": "1700200000",
+        "txHash": "0xclaim123claim123claim123claim123claim123claim123claim123claim123"
+      }
+    ]
   }
 }
 ```
@@ -674,6 +1452,30 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "vestingSchedules": [
+      {
+        "token": {
+          "id": "0x9988776655443322998877665544332299887766",
+          "name": "DogeKing",
+          "symbol": "DGKG"
+        },
+        "beneficiary": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
+        "amount": "30000000000000000000000000",
+        "claimed": "5000000000000000000000000",
+        "burnedOnVoid": "25000000000000000000000000",
+        "voidedTxHash": "0xvoid1234void1234void1234void1234void1234void1234void1234void1234",
+        "createdAtTimestamp": "1700000000"
+      }
+    ]
+  }
+}
+```
+
 ### Schedules with unclaimed balance (not voided, claimed < amount)
 
 ```graphql
@@ -690,6 +1492,28 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     amount
     claimed
     createdAtTimestamp
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "vestingSchedules": [
+      {
+        "token": {
+          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+          "name": "PepeMoon",
+          "symbol": "PPEM"
+        },
+        "beneficiary": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "amount": "50000000000000000000000000",
+        "claimed": "10000000000000000000000000",
+        "createdAtTimestamp": "1700086400"
+      }
+    ]
   }
 }
 ```
@@ -716,6 +1540,24 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "timelockActions": [
+      {
+        "id": "0x1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d",
+        "executeAfter": "1700172800",
+        "queuedAtTimestamp": "1700086400",
+        "queuedAtBlockNumber": "38120000",
+        "queuedTxHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+      }
+    ]
+  }
+}
+```
+
 ### Full timelock history — newest first
 
 ```graphql
@@ -734,6 +1576,39 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "timelockActions": [
+      {
+        "id": "0x1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d",
+        "executed": true,
+        "cancelled": false,
+        "executeAfter": "1700172800",
+        "queuedAtTimestamp": "1700086400",
+        "queuedAtBlockNumber": "38120000",
+        "queuedTxHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
+        "executedTxHash": "0xexec5678exec5678exec5678exec5678exec5678exec5678exec5678exec5678",
+        "cancelledTxHash": null
+      },
+      {
+        "id": "0x5e6f7a8b5e6f7a8b5e6f7a8b5e6f7a8b5e6f7a8b5e6f7a8b5e6f7a8b5e6f7a8b",
+        "executed": false,
+        "cancelled": true,
+        "executeAfter": "1699900000",
+        "queuedAtTimestamp": "1699800000",
+        "queuedAtBlockNumber": "38000000",
+        "queuedTxHash": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
+        "executedTxHash": null,
+        "cancelledTxHash": "0xcanc9999canc9999canc9999canc9999canc9999canc9999canc9999canc9999"
+      }
+    ]
+  }
+}
+```
+
 ### Executed actions only
 
 ```graphql
@@ -748,6 +1623,24 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "timelockActions": [
+      {
+        "id": "0x1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d",
+        "executeAfter": "1700172800",
+        "queuedAtTimestamp": "1700086400",
+        "queuedTxHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
+        "executedTxHash": "0xexec5678exec5678exec5678exec5678exec5678exec5678exec5678exec5678"
+      }
+    ]
+  }
+}
+```
+
 ### Cancelled actions only
 
 ```graphql
@@ -758,6 +1651,24 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     queuedAtTimestamp
     queuedTxHash
     cancelledTxHash
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "timelockActions": [
+      {
+        "id": "0x5e6f7a8b5e6f7a8b5e6f7a8b5e6f7a8b5e6f7a8b5e6f7a8b5e6f7a8b5e6f7a8b",
+        "executeAfter": "1699900000",
+        "queuedAtTimestamp": "1699800000",
+        "queuedTxHash": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
+        "cancelledTxHash": "0xcanc9999canc9999canc9999canc9999canc9999canc9999canc9999canc9999"
+      }
+    ]
   }
 }
 ```
@@ -785,6 +1696,27 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "buyBacks": [
+      {
+        "id": "0xbbbb1111bbbb1111bbbb1111bbbb1111bbbb1111",
+        "owner": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "router": "0x10ed43c718714eb63d5aa57b78b54704e256024e",
+        "buyToken": "0x1ce0c2827e2ef14d5c4f29a091d735a204794041",
+        "cooldown": "3600",
+        "lastBuyAt": "1700085000",
+        "totalBNBSpent": "4500000000000000000",
+        "buybackCount": "9"
+      }
+    ]
+  }
+}
+```
+
 ### BuyBack state with full event history
 
 ```graphql
@@ -808,6 +1740,41 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "buyBacks": [
+      {
+        "id": "0xbbbb1111bbbb1111bbbb1111bbbb1111bbbb1111",
+        "owner": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "router": "0x10ed43c718714eb63d5aa57b78b54704e256024e",
+        "buyToken": "0x1ce0c2827e2ef14d5c4f29a091d735a204794041",
+        "cooldown": "3600",
+        "lastBuyAt": "1700085000",
+        "totalBNBSpent": "4500000000000000000",
+        "buybackCount": "9",
+        "events": [
+          {
+            "bnbSpent": "500000000000000000",
+            "balanceBefore": "2000000000000000000",
+            "timestamp": "1700085000",
+            "txHash": "0xbuyb1234buyb1234buyb1234buyb1234buyb1234buyb1234buyb1234buyb1234"
+          },
+          {
+            "bnbSpent": "500000000000000000",
+            "balanceBefore": "2500000000000000000",
+            "timestamp": "1700081400",
+            "txHash": "0xbuyb5678buyb5678buyb5678buyb5678buyb5678buyb5678buyb5678buyb5678"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
 ### Recent buyback events
 
 ```graphql
@@ -823,6 +1790,28 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "buyBackEvents": [
+      {
+        "buyback": {
+          "id": "0xbbbb1111bbbb1111bbbb1111bbbb1111bbbb1111",
+          "buyToken": "0x1ce0c2827e2ef14d5c4f29a091d735a204794041"
+        },
+        "bnbSpent": "500000000000000000",
+        "balanceBefore": "2000000000000000000",
+        "timestamp": "1700085000",
+        "blockNumber": "38119000",
+        "txHash": "0xbuyb1234buyb1234buyb1234buyb1234buyb1234buyb1234buyb1234buyb1234"
+      }
+    ]
+  }
+}
+```
+
 ### Largest buybacks by BNB spent
 
 ```graphql
@@ -833,6 +1822,27 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     balanceBefore
     timestamp
     txHash
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "buyBackEvents": [
+      {
+        "buyback": {
+          "id": "0xbbbb1111bbbb1111bbbb1111bbbb1111bbbb1111",
+          "buyToken": "0x1ce0c2827e2ef14d5c4f29a091d735a204794041"
+        },
+        "bnbSpent": "1000000000000000000",
+        "balanceBefore": "5000000000000000000",
+        "timestamp": "1699950000",
+        "txHash": "0xbig1234big1234big1234big1234big1234big1234big1234big1234big1234"
+      }
+    ]
   }
 }
 ```
@@ -862,6 +1872,29 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "collectors": [
+      {
+        "id": "0xcccc2222cccc2222cccc2222cccc2222cccc2222",
+        "owner": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "cr8": "0x1111111111111111111111111111111111111111",
+        "mtn": "0x2222222222222222222222222222222222222222",
+        "bb": "0xbbbb1111bbbb1111bbbb1111bbbb1111bbbb1111",
+        "tw": "0x3333333333333333333333333333333333333333",
+        "hk": "0x4444444444444444444444444444444444444444",
+        "kjc": "0x5555555555555555555555555555555555555555",
+        "totalDispersed": "12000000000000000000",
+        "disperseCount": "24"
+      }
+    ]
+  }
+}
+```
+
 ### Collector state with disperse history
 
 ```graphql
@@ -880,6 +1913,35 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "collectors": [
+      {
+        "id": "0xcccc2222cccc2222cccc2222cccc2222cccc2222",
+        "owner": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "totalDispersed": "12000000000000000000",
+        "disperseCount": "24",
+        "disperses": [
+          {
+            "total": "500000000000000000",
+            "timestamp": "1700085000",
+            "txHash": "0xdisp1234disp1234disp1234disp1234disp1234disp1234disp1234disp1234"
+          },
+          {
+            "total": "500000000000000000",
+            "timestamp": "1700071200",
+            "txHash": "0xdisp5678disp5678disp5678disp5678disp5678disp5678disp5678disp5678"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
 ### All disperse events — newest first
 
 ```graphql
@@ -890,6 +1952,24 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     timestamp
     blockNumber
     txHash
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "disperseEvents": [
+      {
+        "collector": { "id": "0xcccc2222cccc2222cccc2222cccc2222cccc2222" },
+        "total": "500000000000000000",
+        "timestamp": "1700085000",
+        "blockNumber": "38119000",
+        "txHash": "0xdisp1234disp1234disp1234disp1234disp1234disp1234disp1234disp1234"
+      }
+    ]
   }
 }
 ```
@@ -907,6 +1987,23 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "disperseEvents": [
+      {
+        "collector": { "id": "0xcccc2222cccc2222cccc2222cccc2222cccc2222" },
+        "total": "1000000000000000000",
+        "timestamp": "1699950000",
+        "txHash": "0xbigd1234bigd1234bigd1234bigd1234bigd1234bigd1234bigd1234bigd1234"
+      }
+    ]
+  }
+}
+```
+
 ---
 
 ## Peripheral — Vault
@@ -920,6 +2017,21 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
   vaultContracts {
     id
     proposalCount
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "vaultContracts": [
+      {
+        "id": "0xdddd3333dddd3333dddd3333dddd3333dddd3333",
+        "proposalCount": "7"
+      }
+    ]
   }
 }
 ```
@@ -948,6 +2060,34 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "vaultProposals": [
+      {
+        "id": "0xdddd3333dddd3333dddd3333dddd3333dddd3333000000000000000000000000000000000000000000000000000000000000007",
+        "vault": { "id": "0xdddd3333dddd3333dddd3333dddd3333dddd3333" },
+        "proposalId": "7",
+        "to": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "value": "1000000000000000000",
+        "data": "0x",
+        "proposer": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
+        "confirmCount": 2,
+        "executed": true,
+        "cancelled": false,
+        "executedTxHash": "0xexec5678exec5678exec5678exec5678exec5678exec5678exec5678exec5678",
+        "cancelledTxHash": null,
+        "createdAtTimestamp": "1700080000",
+        "createdAtBlockNumber": "38117000",
+        "txHash": "0xprop1234prop1234prop1234prop1234prop1234prop1234prop1234prop1234"
+      }
+    ]
+  }
+}
+```
+
 ### Proposals awaiting execution (2-of-3 threshold met, not yet executed)
 
 ```graphql
@@ -969,6 +2109,27 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "vaultProposals": [
+      {
+        "proposalId": "8",
+        "to": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "value": "500000000000000000",
+        "data": "0x",
+        "proposer": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
+        "confirmCount": 2,
+        "createdAtTimestamp": "1700086400",
+        "txHash": "0xprop5678prop5678prop5678prop5678prop5678prop5678prop5678prop5678"
+      }
+    ]
+  }
+}
+```
+
 ### Proposals still collecting signatures (threshold not yet met)
 
 ```graphql
@@ -984,6 +2145,25 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     proposer
     confirmCount
     createdAtTimestamp
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "vaultProposals": [
+      {
+        "proposalId": "9",
+        "to": "0x9988776655443322998877665544332299887766",
+        "value": "0",
+        "proposer": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
+        "confirmCount": 1,
+        "createdAtTimestamp": "1700090000"
+      }
+    ]
   }
 }
 ```
@@ -1009,6 +2189,27 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "vaultProposals": [
+      {
+        "proposalId": "7",
+        "to": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "value": "1000000000000000000",
+        "data": "0x",
+        "proposer": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
+        "createdAtTimestamp": "1700080000",
+        "txHash": "0xprop1234prop1234prop1234prop1234prop1234prop1234prop1234prop1234",
+        "executedTxHash": "0xexec5678exec5678exec5678exec5678exec5678exec5678exec5678exec5678"
+      }
+    ]
+  }
+}
+```
+
 ### Cancelled proposals
 
 ```graphql
@@ -1025,6 +2226,26 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     createdAtTimestamp
     txHash
     cancelledTxHash
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "vaultProposals": [
+      {
+        "proposalId": "6",
+        "to": "0x9988776655443322998877665544332299887766",
+        "value": "0",
+        "proposer": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "createdAtTimestamp": "1699900000",
+        "txHash": "0xcanp1234canp1234canp1234canp1234canp1234canp1234canp1234canp1234",
+        "cancelledTxHash": "0xcanc9999canc9999canc9999canc9999canc9999canc9999canc9999canc9999"
+      }
+    ]
   }
 }
 ```
@@ -1057,6 +2278,37 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokenSnapshots": [
+      {
+        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b200246f90",
+        "blockNumber": "38120080",
+        "timestamp": "1700086740",
+        "openRaisedBNB": "5000000000000000000",
+        "closeRaisedBNB": "5200000000000000000",
+        "volumeBNB": "200000000000000000",
+        "buyCount": 1,
+        "sellCount": 0
+      },
+      {
+        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b200246f80",
+        "blockNumber": "38120064",
+        "timestamp": "1700086692",
+        "openRaisedBNB": "4800000000000000000",
+        "closeRaisedBNB": "5000000000000000000",
+        "volumeBNB": "350000000000000000",
+        "buyCount": 2,
+        "sellCount": 1
+      }
+    ]
+  }
+}
+```
+
 ### Snapshots in a block range
 
 ```graphql
@@ -1082,6 +2334,35 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokenSnapshots": [
+      {
+        "blockNumber": "38120000",
+        "timestamp": "1700086400",
+        "openRaisedBNB": "1000000000000000000",
+        "closeRaisedBNB": "1300000000000000000",
+        "volumeBNB": "300000000000000000",
+        "buyCount": 3,
+        "sellCount": 0
+      },
+      {
+        "blockNumber": "38120020",
+        "timestamp": "1700086460",
+        "openRaisedBNB": "1300000000000000000",
+        "closeRaisedBNB": "1150000000000000000",
+        "volumeBNB": "150000000000000000",
+        "buyCount": 0,
+        "sellCount": 1
+      }
+    ]
+  }
+}
+```
+
 ### High-volume blocks — snapshots with most BNB traded
 
 ```graphql
@@ -1103,6 +2384,26 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokenSnapshots": [
+      {
+        "blockNumber": "38120030",
+        "timestamp": "1700086490",
+        "volumeBNB": "2000000000000000000",
+        "buyCount": 4,
+        "sellCount": 1,
+        "openRaisedBNB": "3000000000000000000",
+        "closeRaisedBNB": "4800000000000000000"
+      }
+    ]
+  }
+}
+```
+
 ### Latest snapshot (current price proxy)
 
 ```graphql
@@ -1117,6 +2418,23 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
     timestamp
     closeRaisedBNB
     volumeBNB
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokenSnapshots": [
+      {
+        "blockNumber": "38120080",
+        "timestamp": "1700086740",
+        "closeRaisedBNB": "5200000000000000000",
+        "volumeBNB": "200000000000000000"
+      }
+    ]
   }
 }
 ```
@@ -1140,6 +2458,29 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
     volumeBNB
     buyCount
     sellCount
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokenSnapshots": [
+      {
+        "token": {
+          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+          "name": "PepeMoon",
+          "symbol": "PPEM"
+        },
+        "blockNumber": "38120030",
+        "timestamp": "1700086490",
+        "volumeBNB": "2000000000000000000",
+        "buyCount": 4,
+        "sellCount": 1
+      }
+    ]
   }
 }
 ```
@@ -1169,6 +2510,31 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "holders": [
+      {
+        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2f1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "address": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "balance": "50000000000000000000000000",
+        "lastUpdatedBlock": "38120050",
+        "lastUpdatedTimestamp": "1700086500"
+      },
+      {
+        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2ccddee001122ccddee001122ccddee001122ccdd",
+        "address": "0xccddee001122ccddee001122ccddee001122ccdd",
+        "balance": "4850000000000000000000000",
+        "lastUpdatedBlock": "38120050",
+        "lastUpdatedTimestamp": "1700086500"
+      }
+    ]
+  }
+}
+```
+
 ### Top 10 holders (whale list)
 
 ```graphql
@@ -1186,6 +2552,27 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "holders": [
+      {
+        "address": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "balance": "50000000000000000000000000",
+        "lastUpdatedBlock": "38120050"
+      },
+      {
+        "address": "0xccddee001122ccddee001122ccddee001122ccdd",
+        "balance": "4850000000000000000000000",
+        "lastUpdatedBlock": "38120050"
+      }
+    ]
+  }
+}
+```
+
 ### Holder count for a token (via token entity)
 
 ```graphql
@@ -1196,6 +2583,24 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
     symbol
     holders {
       id
+    }
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "token": {
+      "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+      "name": "PepeMoon",
+      "symbol": "PPEM",
+      "holders": [
+        { "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2f1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4" },
+        { "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2ccddee001122ccddee001122ccddee001122ccdd" }
+      ]
     }
   }
 }
@@ -1219,6 +2624,29 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "holders": [
+      {
+        "token": {
+          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+          "name": "PepeMoon",
+          "symbol": "PPEM",
+          "raisedBNB": "5200000000000000000",
+          "migrated": false
+        },
+        "balance": "50000000000000000000000000",
+        "lastUpdatedBlock": "38120050",
+        "lastUpdatedTimestamp": "1700086500"
+      }
+    ]
+  }
+}
+```
+
 ### Holders updated in last N blocks
 
 ```graphql
@@ -1236,6 +2664,23 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
     balance
     lastUpdatedBlock
     lastUpdatedTimestamp
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "holders": [
+      {
+        "address": "0xccddee001122ccddee001122ccddee001122ccdd",
+        "balance": "4850000000000000000000000",
+        "lastUpdatedBlock": "38120050",
+        "lastUpdatedTimestamp": "1700086500"
+      }
+    ]
   }
 }
 ```
@@ -1270,6 +2715,403 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
       balance
       lastUpdatedBlock
     }
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "token": {
+      "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+      "name": "PepeMoon",
+      "symbol": "PPEM",
+      "raisedBNB": "5200000000000000000",
+      "migrated": false,
+      "metaUri": "ipfs://QmPepeMoonMetaXYZ123456789abcdef",
+      "description": "The moon-bound Pepe token on OneMEME.",
+      "image": "QmPepeMoonImageXYZ123456789abcdef",
+      "website": "https://pepemoon.io",
+      "twitter": "https://twitter.com/pepemoon",
+      "telegram": "https://t.me/pepemoon",
+      "snapshots": [
+        {
+          "blockNumber": "38120080",
+          "timestamp": "1700086740",
+          "openRaisedBNB": "5000000000000000000",
+          "closeRaisedBNB": "5200000000000000000",
+          "volumeBNB": "200000000000000000",
+          "buyCount": 1,
+          "sellCount": 0
+        }
+      ],
+      "holders": [
+        {
+          "address": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+          "balance": "50000000000000000000000000",
+          "lastUpdatedBlock": "38120050"
+        },
+        {
+          "address": "0xccddee001122ccddee001122ccddee001122ccdd",
+          "balance": "4850000000000000000000000",
+          "lastUpdatedBlock": "38120050"
+        }
+      ]
+    }
+  }
+}
+```
+
+---
+
+## Trending Tokens
+
+`TokenPeriodStats` tracks buy/sell volume and trade counts in five rolling windows: `5m`, `45m`, `1h`, `1d`, `7d`. Each entity covers one (token, period, bucket) combination. Query the current bucket by filtering `periodStart` to find the bucket that contains now.
+
+### Top trending tokens — 5 min window
+
+```graphql
+# Replace BUCKET_START with: Math.floor(Date.now() / 1000 / 300) * 300
+{
+  tokenPeriodStats(
+    where: { period: "5m", periodStart: "BUCKET_START" }
+    orderBy: volumeBNB
+    orderDirection: desc
+    first: 20
+  ) {
+    token { id name symbol raisedBNB migrated }
+    volumeBNB
+    buyVolumeBNB
+    sellVolumeBNB
+    buysCount
+    sellsCount
+    openRaisedBNB
+    closeRaisedBNB
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokenPeriodStats": [
+      {
+        "token": {
+          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+          "name": "PepeMoon",
+          "symbol": "PPEM",
+          "raisedBNB": "5200000000000000000",
+          "migrated": false
+        },
+        "volumeBNB": "550000000000000000",
+        "buyVolumeBNB": "400000000000000000",
+        "sellVolumeBNB": "150000000000000000",
+        "buysCount": "4",
+        "sellsCount": "1",
+        "openRaisedBNB": "5000000000000000000",
+        "closeRaisedBNB": "5200000000000000000"
+      },
+      {
+        "token": {
+          "id": "0x9988776655443322998877665544332299887766",
+          "name": "DogeKing",
+          "symbol": "DGKG",
+          "raisedBNB": "1800000000000000000",
+          "migrated": false
+        },
+        "volumeBNB": "200000000000000000",
+        "buyVolumeBNB": "200000000000000000",
+        "sellVolumeBNB": "0",
+        "buysCount": "2",
+        "sellsCount": "0",
+        "openRaisedBNB": "1600000000000000000",
+        "closeRaisedBNB": "1800000000000000000"
+      }
+    ]
+  }
+}
+```
+
+### Top trending tokens — 1 hour window
+
+```graphql
+# Replace BUCKET_START with: Math.floor(Date.now() / 1000 / 3600) * 3600
+{
+  tokenPeriodStats(
+    where: { period: "1h", periodStart: "BUCKET_START" }
+    orderBy: volumeBNB
+    orderDirection: desc
+    first: 20
+  ) {
+    token { id name symbol raisedBNB migrated }
+    volumeBNB
+    buyVolumeBNB
+    sellVolumeBNB
+    buysCount
+    sellsCount
+    openRaisedBNB
+    closeRaisedBNB
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokenPeriodStats": [
+      {
+        "token": {
+          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+          "name": "PepeMoon",
+          "symbol": "PPEM",
+          "raisedBNB": "5200000000000000000",
+          "migrated": false
+        },
+        "volumeBNB": "4100000000000000000",
+        "buyVolumeBNB": "3500000000000000000",
+        "sellVolumeBNB": "600000000000000000",
+        "buysCount": "35",
+        "sellsCount": "8",
+        "openRaisedBNB": "1000000000000000000",
+        "closeRaisedBNB": "5200000000000000000"
+      }
+    ]
+  }
+}
+```
+
+### Top trending tokens — 24 hour window
+
+```graphql
+# Replace BUCKET_START with: Math.floor(Date.now() / 1000 / 86400) * 86400
+{
+  tokenPeriodStats(
+    where: { period: "1d", periodStart: "BUCKET_START" }
+    orderBy: volumeBNB
+    orderDirection: desc
+    first: 20
+  ) {
+    token { id name symbol raisedBNB migrated }
+    volumeBNB
+    buyVolumeBNB
+    sellVolumeBNB
+    buysCount
+    sellsCount
+    openRaisedBNB
+    closeRaisedBNB
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokenPeriodStats": [
+      {
+        "token": {
+          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+          "name": "PepeMoon",
+          "symbol": "PPEM",
+          "raisedBNB": "5200000000000000000",
+          "migrated": false
+        },
+        "volumeBNB": "8400000000000000000",
+        "buyVolumeBNB": "7000000000000000000",
+        "sellVolumeBNB": "1400000000000000000",
+        "buysCount": "84",
+        "sellsCount": "21",
+        "openRaisedBNB": "0",
+        "closeRaisedBNB": "5200000000000000000"
+      }
+    ]
+  }
+}
+```
+
+### Top trending tokens — 7 day window
+
+```graphql
+# Replace BUCKET_START with: Math.floor(Date.now() / 1000 / 604800) * 604800
+{
+  tokenPeriodStats(
+    where: { period: "7d", periodStart: "BUCKET_START" }
+    orderBy: volumeBNB
+    orderDirection: desc
+    first: 20
+  ) {
+    token { id name symbol raisedBNB migrated }
+    volumeBNB
+    buyVolumeBNB
+    sellVolumeBNB
+    buysCount
+    sellsCount
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokenPeriodStats": [
+      {
+        "token": {
+          "id": "0x1122334455667788112233445566778811223344",
+          "name": "ShibaRocket",
+          "symbol": "SHRKT",
+          "raisedBNB": "0",
+          "migrated": true
+        },
+        "volumeBNB": "40500000000000000000",
+        "buyVolumeBNB": "32000000000000000000",
+        "sellVolumeBNB": "8500000000000000000",
+        "buysCount": "312",
+        "sellsCount": "97"
+      },
+      {
+        "token": {
+          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+          "name": "PepeMoon",
+          "symbol": "PPEM",
+          "raisedBNB": "5200000000000000000",
+          "migrated": false
+        },
+        "volumeBNB": "8400000000000000000",
+        "buyVolumeBNB": "7000000000000000000",
+        "sellVolumeBNB": "1400000000000000000",
+        "buysCount": "84",
+        "sellsCount": "21"
+      }
+    ]
+  }
+}
+```
+
+### All period stats for a specific token
+
+```graphql
+{
+  tokenPeriodStats(
+    where: { token: "0xTOKEN_ADDRESS" }
+    orderBy: periodStart
+    orderDirection: desc
+    first: 50
+  ) {
+    period
+    periodStart
+    volumeBNB
+    buyVolumeBNB
+    sellVolumeBNB
+    buysCount
+    sellsCount
+    openRaisedBNB
+    closeRaisedBNB
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokenPeriodStats": [
+      {
+        "period": "5m",
+        "periodStart": "1700086800",
+        "volumeBNB": "200000000000000000",
+        "buyVolumeBNB": "200000000000000000",
+        "sellVolumeBNB": "0",
+        "buysCount": "2",
+        "sellsCount": "0",
+        "openRaisedBNB": "5000000000000000000",
+        "closeRaisedBNB": "5200000000000000000"
+      },
+      {
+        "period": "1h",
+        "periodStart": "1700085600",
+        "volumeBNB": "4100000000000000000",
+        "buyVolumeBNB": "3500000000000000000",
+        "sellVolumeBNB": "600000000000000000",
+        "buysCount": "35",
+        "sellsCount": "8",
+        "openRaisedBNB": "1000000000000000000",
+        "closeRaisedBNB": "5200000000000000000"
+      },
+      {
+        "period": "1d",
+        "periodStart": "1700006400",
+        "volumeBNB": "8400000000000000000",
+        "buyVolumeBNB": "7000000000000000000",
+        "sellVolumeBNB": "1400000000000000000",
+        "buysCount": "84",
+        "sellsCount": "21",
+        "openRaisedBNB": "0",
+        "closeRaisedBNB": "5200000000000000000"
+      }
+    ]
+  }
+}
+```
+
+### Token 24 h history — all hourly buckets
+
+```graphql
+{
+  tokenPeriodStats(
+    where: { token: "0xTOKEN_ADDRESS", period: "1h" }
+    orderBy: periodStart
+    orderDirection: desc
+    first: 24
+  ) {
+    periodStart
+    volumeBNB
+    buyVolumeBNB
+    sellVolumeBNB
+    buysCount
+    sellsCount
+    openRaisedBNB
+    closeRaisedBNB
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokenPeriodStats": [
+      {
+        "periodStart": "1700085600",
+        "volumeBNB": "4100000000000000000",
+        "buyVolumeBNB": "3500000000000000000",
+        "sellVolumeBNB": "600000000000000000",
+        "buysCount": "35",
+        "sellsCount": "8",
+        "openRaisedBNB": "1000000000000000000",
+        "closeRaisedBNB": "5200000000000000000"
+      },
+      {
+        "periodStart": "1700082000",
+        "volumeBNB": "2100000000000000000",
+        "buyVolumeBNB": "2100000000000000000",
+        "sellVolumeBNB": "0",
+        "buysCount": "21",
+        "sellsCount": "0",
+        "openRaisedBNB": "0",
+        "closeRaisedBNB": "1000000000000000000"
+      }
+    ]
   }
 }
 ```
@@ -1334,6 +3176,70 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "token": {
+      "name": "ShibaRocket",
+      "symbol": "SHRKT",
+      "tokenType": "STANDARD",
+      "creator": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+      "totalSupply": "1000000000000000000000000000",
+      "raisedBNB": "0",
+      "migrationTarget": "20000000000000000000",
+      "migrated": true,
+      "pair": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
+      "migrationBNB": "20000000000000000000",
+      "migrationLiquidityTokens": "500000000000000000000000000",
+      "migratedAtTimestamp": "1699950000",
+      "buysCount": "312",
+      "sellsCount": "97",
+      "totalVolumeBNBBuy": "32000000000000000000",
+      "totalVolumeBNBSell": "8500000000000000000",
+      "createdAtTimestamp": "1699800000",
+      "metaUri": "ipfs://QmShibaRocketMetaABC",
+      "description": "To the moon on a rocket.",
+      "image": "QmShibaRocketImageABC",
+      "website": "https://shibarocket.io",
+      "twitter": "https://twitter.com/shibarocket",
+      "telegram": null,
+      "trades": [
+        {
+          "type": "BUY",
+          "trader": "0xccddee001122ccddee001122ccddee001122ccdd",
+          "bnbAmount": "500000000000000000",
+          "tokenAmount": "12000000000000000000000000",
+          "tokensToDead": "0",
+          "raisedBNBAfter": "19800000000000000000",
+          "timestamp": "1699949900",
+          "txHash": "0xlast1234last1234last1234last1234last1234last1234last1234last1234"
+        }
+      ],
+      "vestingSchedules": [
+        {
+          "beneficiary": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+          "amount": "50000000000000000000000000",
+          "claimed": "50000000000000000000000000",
+          "voided": false,
+          "burnedOnVoid": null
+        }
+      ],
+      "migrations": [
+        {
+          "pair": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
+          "liquidityBNB": "20000000000000000000",
+          "liquidityTokens": "500000000000000000000000000",
+          "timestamp": "1699950000",
+          "txHash": "0xdead5678dead5678dead5678dead5678dead5678dead5678dead5678dead5678"
+        }
+      ]
+    }
+  }
+}
+```
+
 ### Creator portfolio — all tokens with volume stats
 
 ```graphql
@@ -1366,6 +3272,63 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokens": [
+      {
+        "id": "0x1122334455667788112233445566778811223344",
+        "name": "ShibaRocket",
+        "symbol": "SHRKT",
+        "tokenType": "STANDARD",
+        "raisedBNB": "0",
+        "migrationTarget": "20000000000000000000",
+        "migrated": true,
+        "pair": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
+        "buysCount": "312",
+        "sellsCount": "97",
+        "totalVolumeBNBBuy": "32000000000000000000",
+        "totalVolumeBNBSell": "8500000000000000000",
+        "createdAtTimestamp": "1699800000",
+        "vestingSchedules": [
+          {
+            "beneficiary": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+            "amount": "50000000000000000000000000",
+            "claimed": "50000000000000000000000000",
+            "voided": false
+          }
+        ]
+      },
+      {
+        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+        "name": "PepeMoon",
+        "symbol": "PPEM",
+        "tokenType": "STANDARD",
+        "raisedBNB": "5200000000000000000",
+        "migrationTarget": "20000000000000000000",
+        "migrated": false,
+        "pair": null,
+        "buysCount": "84",
+        "sellsCount": "21",
+        "totalVolumeBNBBuy": "8400000000000000000",
+        "totalVolumeBNBSell": "1050000000000000000",
+        "createdAtTimestamp": "1700086400",
+        "vestingSchedules": [
+          {
+            "beneficiary": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+            "amount": "50000000000000000000000000",
+            "claimed": "10000000000000000000000000",
+            "voided": false
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
 ### Top 10 tokens by total BNB buy volume
 
 ```graphql
@@ -1381,6 +3344,41 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
     sellsCount
     migrated
     creator
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokens": [
+      {
+        "id": "0x1122334455667788112233445566778811223344",
+        "name": "ShibaRocket",
+        "symbol": "SHRKT",
+        "tokenType": "STANDARD",
+        "totalVolumeBNBBuy": "32000000000000000000",
+        "totalVolumeBNBSell": "8500000000000000000",
+        "buysCount": "312",
+        "sellsCount": "97",
+        "migrated": true,
+        "creator": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4"
+      },
+      {
+        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+        "name": "PepeMoon",
+        "symbol": "PPEM",
+        "tokenType": "STANDARD",
+        "totalVolumeBNBBuy": "8400000000000000000",
+        "totalVolumeBNBSell": "1050000000000000000",
+        "buysCount": "84",
+        "sellsCount": "21",
+        "migrated": false,
+        "creator": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4"
+      }
+    ]
   }
 }
 ```
@@ -1403,6 +3401,28 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "tokens": [
+      {
+        "id": "0x1122334455667788112233445566778811223344",
+        "name": "ShibaRocket",
+        "symbol": "SHRKT",
+        "tokenType": "STANDARD",
+        "buysCount": "312",
+        "sellsCount": "97",
+        "totalVolumeBNBBuy": "32000000000000000000",
+        "raisedBNB": "0",
+        "migrated": true
+      }
+    ]
+  }
+}
+```
+
 ### Activity leaderboard — top traders by trade count
 
 ```graphql
@@ -1420,6 +3440,31 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
     bnbAmount
     tokenAmount
     timestamp
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "trades": [
+      {
+        "trader": "0xccddee001122ccddee001122ccddee001122ccdd",
+        "type": "BUY",
+        "bnbAmount": "200000000000000000",
+        "tokenAmount": "4850000000000000000000000",
+        "timestamp": "1700086500"
+      },
+      {
+        "trader": "0x1234567890abcdef1234567890abcdef12345678",
+        "type": "SELL",
+        "bnbAmount": "150000000000000000",
+        "tokenAmount": "3600000000000000000000000",
+        "timestamp": "1700086450"
+      }
+    ]
   }
 }
 ```
@@ -1449,6 +3494,43 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
 }
 ```
 
+**Example response:**
+
+```json
+{
+  "data": {
+    "factories": [
+      {
+        "totalTokensCreated": "142",
+        "totalMigrations": "11"
+      }
+    ],
+    "activeBonding": [
+      {
+        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+        "name": "PepeMoon",
+        "symbol": "PPEM",
+        "raisedBNB": "5200000000000000000",
+        "migrationTarget": "20000000000000000000",
+        "buysCount": "84"
+      }
+    ],
+    "recentMigrations": [
+      {
+        "token": {
+          "id": "0x1122334455667788112233445566778811223344",
+          "name": "ShibaRocket",
+          "symbol": "SHRKT"
+        },
+        "pair": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
+        "liquidityBNB": "20000000000000000000",
+        "timestamp": "1699950000"
+      }
+    ]
+  }
+}
+```
+
 ### Governance dashboard — factory config and pending actions
 
 ```graphql
@@ -1464,6 +3546,31 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
       queuedAtTimestamp
       queuedTxHash
     }
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "factories": [
+      {
+        "creationFee": "100000000000000000",
+        "defaultVirtualBNB": "1000000000000000000",
+        "defaultMigrationTarget": "20000000000000000000",
+        "owner": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "timelockActions": [
+          {
+            "id": "0x1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d",
+            "executeAfter": "1700172800",
+            "queuedAtTimestamp": "1700086400",
+            "queuedTxHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+          }
+        ]
+      }
+    ]
   }
 }
 ```
@@ -1488,6 +3595,24 @@ The Graph uses `first` (page size) and `skip` (offset) for pagination, or cursor
 {
   trades(orderBy: timestamp, orderDirection: desc, first: 50, skip: 50) {
     id type trader bnbAmount timestamp
+  }
+}
+```
+
+**Example response (page 1):**
+
+```json
+{
+  "data": {
+    "trades": [
+      {
+        "id": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd12340000",
+        "type": "BUY",
+        "trader": "0xccddee001122ccddee001122ccddee001122ccdd",
+        "bnbAmount": "200000000000000000",
+        "timestamp": "1700086500"
+      }
+    ]
   }
 }
 ```
@@ -1525,6 +3650,31 @@ Use the last returned `id` or `timestamp` as the cursor for the next page.
 }
 ```
 
+**Example response (first page):**
+
+```json
+{
+  "data": {
+    "trades": [
+      {
+        "id": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd12340000",
+        "type": "BUY",
+        "trader": "0xccddee001122ccddee001122ccddee001122ccdd",
+        "bnbAmount": "200000000000000000",
+        "timestamp": "1700086500"
+      },
+      {
+        "id": "0xbeef5678beef5678beef5678beef5678beef5678beef5678beef5678beef56780001",
+        "type": "SELL",
+        "trader": "0x1234567890abcdef1234567890abcdef12345678",
+        "bnbAmount": "150000000000000000",
+        "timestamp": "1700086450"
+      }
+    ]
+  }
+}
+```
+
 ### Cursor-based pagination for tokens
 
 ```graphql
@@ -1544,6 +3694,33 @@ Use the last returned `id` or `timestamp` as the cursor for the next page.
     first: 20
   ) {
     id name symbol raisedBNB migrated createdAtTimestamp
+  }
+}
+```
+
+**Example response (first page):**
+
+```json
+{
+  "data": {
+    "tokens": [
+      {
+        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+        "name": "PepeMoon",
+        "symbol": "PPEM",
+        "raisedBNB": "5200000000000000000",
+        "migrated": false,
+        "createdAtTimestamp": "1700086400"
+      },
+      {
+        "id": "0x9988776655443322998877665544332299887766",
+        "name": "DogeKing",
+        "symbol": "DGKG",
+        "raisedBNB": "1800000000000000000",
+        "migrated": false,
+        "createdAtTimestamp": "1700000000"
+      }
+    ]
   }
 }
 ```

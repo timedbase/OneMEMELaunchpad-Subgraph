@@ -1,4 +1,4 @@
-import { Address, BigInt } from "@graphprotocol/graph-ts";
+import { Address, BigInt, Bytes } from "@graphprotocol/graph-ts";
 import {
   TokenBought,
   TokenSold,
@@ -8,8 +8,64 @@ import {
   CharityWalletUpdated,
   RouterUpdated,
 } from "../generated/BondingCurve/BondingCurve";
-import { Token, Trade, Migration, TokenSnapshot } from "../generated/schema";
+import { Token, Trade, Migration, TokenSnapshot, TokenPeriodStats } from "../generated/schema";
 import { getOrCreateFactory } from "./utils";
+
+function upsertOnePeriodStat(
+  tokenAddr: Address,
+  period: string,
+  duration: i32,
+  timestamp: BigInt,
+  preRaisedBNB: BigInt,
+  postRaisedBNB: BigInt,
+  bnbAmount: BigInt,
+  isBuy: boolean
+): void {
+  const bucketId = timestamp.div(BigInt.fromI32(duration)).toI32();
+  const id = tokenAddr.concat(Bytes.fromUTF8(period)).concatI32(bucketId);
+
+  let stats = TokenPeriodStats.load(id);
+  if (stats == null) {
+    stats = new TokenPeriodStats(id);
+    stats.token         = tokenAddr;
+    stats.period        = period;
+    stats.bucketId      = BigInt.fromI32(bucketId);
+    stats.periodStart   = BigInt.fromI32(bucketId).times(BigInt.fromI32(duration));
+    stats.buyVolumeBNB  = BigInt.fromI32(0);
+    stats.sellVolumeBNB = BigInt.fromI32(0);
+    stats.volumeBNB     = BigInt.fromI32(0);
+    stats.buysCount     = BigInt.fromI32(0);
+    stats.sellsCount    = BigInt.fromI32(0);
+    stats.openRaisedBNB  = preRaisedBNB;
+    stats.closeRaisedBNB = preRaisedBNB;
+  }
+  stats.closeRaisedBNB = postRaisedBNB;
+  stats.volumeBNB      = stats.volumeBNB.plus(bnbAmount);
+  if (isBuy) {
+    stats.buyVolumeBNB = stats.buyVolumeBNB.plus(bnbAmount);
+    stats.buysCount    = stats.buysCount.plus(BigInt.fromI32(1));
+  } else {
+    stats.sellVolumeBNB = stats.sellVolumeBNB.plus(bnbAmount);
+    stats.sellsCount    = stats.sellsCount.plus(BigInt.fromI32(1));
+  }
+  stats.save();
+}
+
+// Must be called BEFORE token.raisedBNB is updated so openRaisedBNB is correct.
+function upsertAllPeriodStats(
+  tokenAddr: Address,
+  timestamp: BigInt,
+  preRaisedBNB: BigInt,
+  postRaisedBNB: BigInt,
+  bnbAmount: BigInt,
+  isBuy: boolean
+): void {
+  upsertOnePeriodStat(tokenAddr, "5m",  300,    timestamp, preRaisedBNB, postRaisedBNB, bnbAmount, isBuy);
+  upsertOnePeriodStat(tokenAddr, "45m", 2700,   timestamp, preRaisedBNB, postRaisedBNB, bnbAmount, isBuy);
+  upsertOnePeriodStat(tokenAddr, "1h",  3600,   timestamp, preRaisedBNB, postRaisedBNB, bnbAmount, isBuy);
+  upsertOnePeriodStat(tokenAddr, "1d",  86400,  timestamp, preRaisedBNB, postRaisedBNB, bnbAmount, isBuy);
+  upsertOnePeriodStat(tokenAddr, "7d",  604800, timestamp, preRaisedBNB, postRaisedBNB, bnbAmount, isBuy);
+}
 
 // Must be called BEFORE token.raisedBNB is updated so openRaisedBNB is correct.
 function upsertSnapshot(
@@ -54,6 +110,14 @@ export function handleTokenBought(event: TokenBought): void {
     event.params.bnbIn,
     true
   );
+  upsertAllPeriodStats(
+    event.params.token,
+    event.block.timestamp,
+    token.raisedBNB,
+    event.params.raisedBNB,
+    event.params.bnbIn,
+    true
+  );
 
   const tradeId = event.transaction.hash.concatI32(event.logIndex.toI32());
   const trade   = new Trade(tradeId);
@@ -86,6 +150,14 @@ export function handleTokenSold(event: TokenSold): void {
   upsertSnapshot(
     event.params.token,
     event.block.number,
+    event.block.timestamp,
+    token.raisedBNB,
+    event.params.raisedBNB,
+    event.params.bnbOut,
+    false
+  );
+  upsertAllPeriodStats(
+    event.params.token,
     event.block.timestamp,
     token.raisedBNB,
     event.params.raisedBNB,

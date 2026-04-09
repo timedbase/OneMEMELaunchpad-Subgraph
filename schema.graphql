@@ -183,6 +183,29 @@ type VestingClaim @entity {
 }
 
 """
+Time-bucketed stats per token — used for trending and leaderboards across five windows.
+period: 5m | 45m | 1h | 1d | 7d. One entity per (token, period, bucket).
+id = tokenAddress + Bytes.fromUTF8(period) + concatI32(bucketId).
+"""
+type TokenPeriodStats @entity {
+  id: Bytes!
+  token: Token!
+  " 5m | 45m | 1h | 1d | 7d "
+  period: String!
+  " timestamp / duration "
+  bucketId: BigInt!
+  " start-of-bucket unix timestamp "
+  periodStart: BigInt!
+  buyVolumeBNB: BigInt!
+  sellVolumeBNB: BigInt!
+  volumeBNB: BigInt!
+  buysCount: BigInt!
+  sellsCount: BigInt!
+  openRaisedBNB: BigInt!
+  closeRaisedBNB: BigInt!
+}
+
+"""
 Per-block OHLCV snapshot for TradingView charts.
 openRaisedBNB / closeRaisedBNB approximate open/close price via pool depth.
 """
