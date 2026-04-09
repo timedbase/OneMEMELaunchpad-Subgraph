@@ -16,7 +16,6 @@ function getOrCreateBuyBack(address: Bytes): BuyBack {
     bb.router        = Bytes.empty();
     bb.buyToken      = Bytes.empty();
     bb.cooldown      = BigInt.fromI32(3600); // default 1 hour
-    bb.lastBuyAt     = BigInt.fromI32(0);
     bb.totalBNBSpent = BigInt.fromI32(0);
     bb.buybackCount  = BigInt.fromI32(0);
     bb.save();

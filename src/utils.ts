@@ -18,6 +18,7 @@ export function getOrCreateFactory(): Factory {
     factory.totalStandardTokens   = BigInt.fromI32(0);
     factory.totalTaxTokens        = BigInt.fromI32(0);
     factory.totalReflectionTokens = BigInt.fromI32(0);
+    factory.totalUnknownTokens    = BigInt.fromI32(0);
     factory.totalBuys             = BigInt.fromI32(0);
     factory.totalSells            = BigInt.fromI32(0);
     factory.totalMigrations       = BigInt.fromI32(0);

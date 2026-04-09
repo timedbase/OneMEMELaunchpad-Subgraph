@@ -53,9 +53,10 @@ export function handleTokenCreated(event: TokenCreated): void {
 
   const factory = getOrCreateFactory();
   factory.totalTokensCreated = factory.totalTokensCreated.plus(BigInt.fromI32(1));
-  if (tokenType == "STANDARD")    factory.totalStandardTokens   = factory.totalStandardTokens.plus(BigInt.fromI32(1));
-  else if (tokenType == "TAX")    factory.totalTaxTokens        = factory.totalTaxTokens.plus(BigInt.fromI32(1));
+  if (tokenType == "STANDARD")        factory.totalStandardTokens   = factory.totalStandardTokens.plus(BigInt.fromI32(1));
+  else if (tokenType == "TAX")        factory.totalTaxTokens        = factory.totalTaxTokens.plus(BigInt.fromI32(1));
   else if (tokenType == "REFLECTION") factory.totalReflectionTokens = factory.totalReflectionTokens.plus(BigInt.fromI32(1));
+  else                                factory.totalUnknownTokens    = factory.totalUnknownTokens.plus(BigInt.fromI32(1));
   factory.save();
 }
 
@@ -101,6 +102,7 @@ export function handleTimelockExecuted(event: TimelockExecuted): void {
   const action = TimelockAction.load(event.params.actionId);
   if (action == null) return;
   action.executed = true;
+  action.executedTxHash = event.transaction.hash;
   action.save();
 }
 
@@ -108,5 +110,6 @@ export function handleTimelockCancelled(event: TimelockCancelled): void {
   const action = TimelockAction.load(event.params.actionId);
   if (action == null) return;
   action.cancelled = true;
+  action.cancelledTxHash = event.transaction.hash;
   action.save();
 }

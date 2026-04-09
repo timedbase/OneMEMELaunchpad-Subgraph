@@ -37,6 +37,7 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
     totalStandardTokens
     totalTaxTokens
     totalReflectionTokens
+    totalUnknownTokens
     totalBuys
     totalSells
     totalMigrations
@@ -123,6 +124,7 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
     createdAtTimestamp
     createdAtBlockNumber
     txHash
+    metaUri
   }
 }
 ```
@@ -616,6 +618,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     amount
     claimed
     burnedOnVoid
+    voidedTxHash
     createdAtTimestamp
   }
 }
@@ -675,6 +678,8 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     queuedAtTimestamp
     queuedAtBlockNumber
     queuedTxHash
+    executedTxHash
+    cancelledTxHash
   }
 }
 ```
@@ -688,6 +693,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     executeAfter
     queuedAtTimestamp
     queuedTxHash
+    executedTxHash
   }
 }
 ```
@@ -701,6 +707,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     executeAfter
     queuedAtTimestamp
     queuedTxHash
+    cancelledTxHash
   }
 }
 ```
@@ -882,6 +889,8 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     confirmCount
     executed
     cancelled
+    executedTxHash
+    cancelledTxHash
     createdAtTimestamp
     createdAtBlockNumber
     txHash
@@ -945,6 +954,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     proposer
     createdAtTimestamp
     txHash
+    executedTxHash
   }
 }
 ```
@@ -964,6 +974,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     proposer
     createdAtTimestamp
     txHash
+    cancelledTxHash
   }
 }
 ```
@@ -1190,11 +1201,6 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
     raisedBNB
     migrated
     metaUri
-    description
-    image
-    website
-    twitter
-    telegram
     snapshots(orderBy: blockNumber, orderDirection: desc, first: 20) {
       blockNumber
       timestamp

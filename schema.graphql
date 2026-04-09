@@ -10,6 +10,7 @@ type Factory @entity {
   totalStandardTokens: BigInt!
   totalTaxTokens: BigInt!
   totalReflectionTokens: BigInt!
+  totalUnknownTokens: BigInt!
 
   " Aggregate trade counts "
   totalBuys: BigInt!
@@ -38,6 +39,8 @@ type TimelockAction @entity {
   queuedAtTimestamp: BigInt!
   queuedAtBlockNumber: BigInt!
   queuedTxHash: Bytes!
+  executedTxHash: Bytes
+  cancelledTxHash: Bytes
 }
 
 """
@@ -150,6 +153,7 @@ type VestingSchedule @entity {
   claimed: BigInt!
   voided: Boolean!
   burnedOnVoid: BigInt
+  voidedTxHash: Bytes
 
   createdAtTimestamp: BigInt!
   createdAtBlockNumber: BigInt!
@@ -176,7 +180,7 @@ Per-block OHLCV snapshot for TradingView charts.
 openRaisedBNB / closeRaisedBNB approximate open/close price via pool depth.
 """
 type TokenSnapshot @entity {
-  " {tokenAddress}-{blockNumber} "
+  " tokenAddress.concatI32(blockNumber) — 24-byte concatenated Bytes "
   id: Bytes!
   token: Token!
   blockNumber: BigInt!
@@ -214,7 +218,7 @@ type BuyBack @entity {
   router: Bytes!
   buyToken: Bytes!
   cooldown: BigInt!
-  lastBuyAt: BigInt!
+  lastBuyAt: BigInt
   totalBNBSpent: BigInt!
   buybackCount: BigInt!
   events: [BuyBackEvent!]! @derivedFrom(field: "buyback")
@@ -290,6 +294,8 @@ type VaultProposal @entity {
   confirmCount: Int!
   executed: Boolean!
   cancelled: Boolean!
+  executedTxHash: Bytes
+  cancelledTxHash: Bytes
   createdAtTimestamp: BigInt!
   createdAtBlockNumber: BigInt!
   txHash: Bytes!

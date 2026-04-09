@@ -73,7 +73,8 @@ export function handleExecuted(event: Executed): void {
   const id       = proposalEntityId(event.address, event.params.id);
   const proposal = VaultProposal.load(id);
   if (proposal == null) return;
-  proposal.executed = true;
+  proposal.executed        = true;
+  proposal.executedTxHash  = event.transaction.hash;
   proposal.save();
 }
 
@@ -81,6 +82,7 @@ export function handleCancelled(event: Cancelled): void {
   const id       = proposalEntityId(event.address, event.params.id);
   const proposal = VaultProposal.load(id);
   if (proposal == null) return;
-  proposal.cancelled = true;
+  proposal.cancelled       = true;
+  proposal.cancelledTxHash = event.transaction.hash;
   proposal.save();
 }

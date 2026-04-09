@@ -49,7 +49,8 @@ export function handleVestingVoided(event: VestingVoided): void {
   const schedule = VestingSchedule.load(id);
   if (schedule == null) return;
 
-  schedule.voided      = true;
+  schedule.voided       = true;
   schedule.burnedOnVoid = event.params.burned;
+  schedule.voidedTxHash = event.transaction.hash;
   schedule.save();
 }
