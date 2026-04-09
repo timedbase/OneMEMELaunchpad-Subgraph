@@ -17,8 +17,10 @@ Replace placeholder addresses (`0xTOKEN_ADDRESS`, etc.) with real checksummed he
 7. [Peripheral — BuyBack](#peripheral--buyback)
 8. [Peripheral — Collector](#peripheral--collector)
 9. [Peripheral — Vault](#peripheral--vault)
-10. [Analytics & combined queries](#analytics--combined-queries)
-11. [Pagination](#pagination)
+10. [Token Snapshots (OHLCV)](#token-snapshots-ohlcv)
+11. [Holders](#holders)
+12. [Analytics & combined queries](#analytics--combined-queries)
+13. [Pagination](#pagination)
 
 ---
 
@@ -962,6 +964,251 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     proposer
     createdAtTimestamp
     txHash
+  }
+}
+```
+
+---
+
+## Token Snapshots (OHLCV)
+
+Per-block price/volume snapshots recorded each time a buy or sell occurs. One `TokenSnapshot` entity per (token, block) pair. `openRaisedBNB` / `closeRaisedBNB` represent the bonding-curve `raisedBNB` value before and after the first/last trade in the block.
+
+### Recent snapshots for a token
+
+```graphql
+{
+  tokenSnapshots(
+    where: { token: "0xTOKEN_ADDRESS" }
+    orderBy: blockNumber
+    orderDirection: desc
+    first: 50
+  ) {
+    id
+    blockNumber
+    timestamp
+    openRaisedBNB
+    closeRaisedBNB
+    volumeBNB
+    buyCount
+    sellCount
+  }
+}
+```
+
+### Snapshots in a block range
+
+```graphql
+{
+  tokenSnapshots(
+    where: {
+      token: "0xTOKEN_ADDRESS"
+      blockNumber_gte: "30000000"
+      blockNumber_lte: "30001000"
+    }
+    orderBy: blockNumber
+    orderDirection: asc
+    first: 1000
+  ) {
+    blockNumber
+    timestamp
+    openRaisedBNB
+    closeRaisedBNB
+    volumeBNB
+    buyCount
+    sellCount
+  }
+}
+```
+
+### High-volume blocks — snapshots with most BNB traded
+
+```graphql
+{
+  tokenSnapshots(
+    where: { token: "0xTOKEN_ADDRESS" }
+    orderBy: volumeBNB
+    orderDirection: desc
+    first: 10
+  ) {
+    blockNumber
+    timestamp
+    volumeBNB
+    buyCount
+    sellCount
+    openRaisedBNB
+    closeRaisedBNB
+  }
+}
+```
+
+### Latest snapshot (current price proxy)
+
+```graphql
+{
+  tokenSnapshots(
+    where: { token: "0xTOKEN_ADDRESS" }
+    orderBy: blockNumber
+    orderDirection: desc
+    first: 1
+  ) {
+    blockNumber
+    timestamp
+    closeRaisedBNB
+    volumeBNB
+  }
+}
+```
+
+### All snapshots across all tokens in a time window
+
+```graphql
+{
+  tokenSnapshots(
+    where: {
+      timestamp_gte: "1700000000"
+      timestamp_lte: "1700086400"
+    }
+    orderBy: volumeBNB
+    orderDirection: desc
+    first: 100
+  ) {
+    token { id name symbol }
+    blockNumber
+    timestamp
+    volumeBNB
+    buyCount
+    sellCount
+  }
+}
+```
+
+---
+
+## Holders
+
+`Holder` entities track the current ERC-20 balance of every address that has ever received a token while it is on the bonding curve. Tracking stops once the token migrates to a DEX (to avoid indexing high-volume swap traffic).
+
+### All holders of a token — sorted by balance
+
+```graphql
+{
+  holders(
+    where: { token: "0xTOKEN_ADDRESS" }
+    orderBy: balance
+    orderDirection: desc
+    first: 100
+  ) {
+    id
+    address
+    balance
+    lastUpdatedBlock
+    lastUpdatedTimestamp
+  }
+}
+```
+
+### Top 10 holders (whale list)
+
+```graphql
+{
+  holders(
+    where: { token: "0xTOKEN_ADDRESS" }
+    orderBy: balance
+    orderDirection: desc
+    first: 10
+  ) {
+    address
+    balance
+    lastUpdatedBlock
+  }
+}
+```
+
+### Holder count for a token (via token entity)
+
+```graphql
+{
+  token(id: "0xTOKEN_ADDRESS") {
+    id
+    name
+    symbol
+    holders {
+      id
+    }
+  }
+}
+```
+
+### Single wallet — all tokens held (pre-migration positions)
+
+```graphql
+{
+  holders(
+    where: { address: "0xWALLET_ADDRESS" }
+    orderBy: balance
+    orderDirection: desc
+    first: 50
+  ) {
+    token { id name symbol raisedBNB migrated }
+    balance
+    lastUpdatedBlock
+    lastUpdatedTimestamp
+  }
+}
+```
+
+### Holders updated in last N blocks
+
+```graphql
+{
+  holders(
+    where: {
+      token: "0xTOKEN_ADDRESS"
+      lastUpdatedBlock_gte: "30000000"
+    }
+    orderBy: lastUpdatedBlock
+    orderDirection: desc
+    first: 50
+  ) {
+    address
+    balance
+    lastUpdatedBlock
+    lastUpdatedTimestamp
+  }
+}
+```
+
+### Token with snapshot and holder data combined
+
+```graphql
+{
+  token(id: "0xTOKEN_ADDRESS") {
+    id
+    name
+    symbol
+    raisedBNB
+    migrated
+    metaUri
+    description
+    image
+    website
+    twitter
+    telegram
+    snapshots(orderBy: blockNumber, orderDirection: desc, first: 20) {
+      blockNumber
+      timestamp
+      openRaisedBNB
+      closeRaisedBNB
+      volumeBNB
+      buyCount
+      sellCount
+    }
+    holders(orderBy: balance, orderDirection: desc, first: 20) {
+      address
+      balance
+      lastUpdatedBlock
+    }
   }
 }
 ```
