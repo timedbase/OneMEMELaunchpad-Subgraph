@@ -5,10 +5,9 @@ import { Holder, Token } from "../generated/schema";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 export function handleTransfer(event: Transfer): void {
-  // event.address is the token contract that emitted the event.
   const tokenAddr = event.address;
 
-  // Stop tracking after migration to avoid indexing high-volume DEX swap traffic.
+  // Stop tracking after migration — avoids indexing high-volume DEX swap traffic.
   const token = Token.load(tokenAddr);
   if (token == null || token.migrated) return;
 
@@ -16,7 +15,6 @@ export function handleTransfer(event: Transfer): void {
   const to    = event.params.to;
   const value = event.params.value;
 
-  // Deduct from sender — skip zero address (mint has no sender to debit).
   if (from.toHexString() != ZERO_ADDRESS) {
     const senderId = tokenAddr.concat(from);
     const sender   = Holder.load(senderId);
@@ -28,7 +26,6 @@ export function handleTransfer(event: Transfer): void {
     }
   }
 
-  // Credit receiver — skip zero address (burn has no receiver to credit).
   if (to.toHexString() != ZERO_ADDRESS) {
     const receiverId = tokenAddr.concat(to);
     let receiver     = Holder.load(receiverId);

@@ -50,11 +50,8 @@ export function handleConfirmed(event: Confirmed): void {
   const proposal = VaultProposal.load(id);
   if (proposal == null) return;
 
-  // propose() emits Confirmed in the same tx as Proposed (proposer auto-confirm).
-  // handleProposed already initialises confirmCount = 1 for that confirm, so we
-  // skip this event when it originates from the same transaction to avoid
-  // double-counting.
-  // Note: Bytes == Bytes is a pointer comparison in AS — must compare hex strings.
+  // propose() auto-confirms in the same tx — already counted in handleProposed.
+  // Bytes == Bytes is pointer equality in AS, so compare hex strings.
   if (event.transaction.hash.toHexString() == proposal.txHash.toHexString()) return;
 
   proposal.confirmCount = proposal.confirmCount + 1;
