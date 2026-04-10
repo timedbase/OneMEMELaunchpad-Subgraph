@@ -4,10 +4,10 @@ import { Factory } from "../generated/schema";
 // Singleton ID for the Factory entity — not an actual address, just a stable key.
 export const FACTORY_ID = Bytes.fromUTF8("factory");
 
-// Function selectors — keccak256(sig).slice(0,4) for each token-creation method.
-export const SELECTOR_CREATE_TOKEN = "bc54d40e"; // createToken(BaseParams)
-export const SELECTOR_CREATE_TT    = "9d2b1e37"; // createTT(CreateTTParams)
-export const SELECTOR_CREATE_RFL   = "101d747c"; // createRFL(CreateRFLParams)
+// Function selectors — verified against deployed Factory 0xA78df27496825B29CbdCD3778e6bc375a646Ae04.
+export const SELECTOR_CREATE_TOKEN = "6b948c92"; // createToken (STANDARD)
+export const SELECTOR_CREATE_TT    = "917a6333"; // createTT    (TAX)
+export const SELECTOR_CREATE_RFL   = "13b0f58a"; // createRFL   (REFLECTION)
 
 export function getOrCreateFactory(): Factory {
   let factory = Factory.load(FACTORY_ID);
