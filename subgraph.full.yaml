@@ -17,9 +17,9 @@ dataSources:
     name: LaunchpadFactory
     network: bsc
     source:
-      address: "0x0000000000000000000000000000000000000000" # TODO: replace with deployed LaunchpadFactory address
+      address: "0xA78df27496825B29CbdCD3778e6bc375a646Ae04"
       abi: LaunchpadFactory
-      startBlock: 0 # TODO: replace with the deployment block number
+      startBlock: 91706714
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -58,9 +58,9 @@ dataSources:
     name: BondingCurve
     network: bsc
     source:
-      address: "0x0000000000000000000000000000000000000000" # TODO: replace with deployed BondingCurve address
+      address: "0xbB843b111639B9F19E575e3804b7c006eE1F80a9"
       abi: BondingCurve
-      startBlock: 0 # TODO: replace with the deployment block number
+      startBlock: 91706714
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -96,9 +96,9 @@ dataSources:
     name: VestingWallet
     network: bsc
     source:
-      address: "0x0000000000000000000000000000000000000000" # TODO: replace with deployed VestingWallet address
+      address: "0x1fFBE03316743187fCEC8eA41fd76f8Ada74658C"
       abi: VestingWallet
-      startBlock: 0 # TODO: replace with the deployment block number
+      startBlock: 91706714
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -124,9 +124,9 @@ dataSources:
     name: OneMEMEBB
     network: bsc
     source:
-      address: "0x0000000000000000000000000000000000000000" # TODO: replace with deployed 1MEMEBB address
+      address: "0x6c489d9a998090D305139097BD110Be742722bB4"
       abi: OneMEMEBB
-      startBlock: 0 # TODO: replace with the deployment block number
+      startBlock: 91706714
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -154,9 +154,9 @@ dataSources:
     name: Collector
     network: bsc
     source:
-      address: "0x0000000000000000000000000000000000000000" # TODO: replace with deployed Collector address
+      address: "0x0D9393D07194E17004F92265613d706277bC48C8"
       abi: Collector
-      startBlock: 0 # TODO: replace with the deployment block number
+      startBlock: 91706714
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -182,7 +182,7 @@ dataSources:
     source:
       address: "0x0000000000000000000000000000000000000000" # TODO: replace with deployed Vault address
       abi: Vault
-      startBlock: 0 # TODO: replace with the deployment block number
+      startBlock: 91706714
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
