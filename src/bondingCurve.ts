@@ -1,4 +1,5 @@
 import { Address, BigInt, Bytes } from "@graphprotocol/graph-ts";
+import { MAX_SPOT_PRICE, getOrCreateFactory, detectTokenType, loadIpfsMetadata } from "./utils";
 import {
   TokenRegistered,
   TokenBought,
@@ -10,8 +11,9 @@ import {
   RouterUpdated,
 } from "../generated/BondingCurve/BondingCurve";
 import { BondingCurve } from "../generated/BondingCurve/BondingCurve";
+import { Token as TokenContract } from "../generated/BondingCurve/Token";
+import { MemeToken } from "../generated/templates";
 import { Token, Trade, Migration, TokenSnapshot, TokenPeriodStats } from "../generated/schema";
-import { getOrCreateFactory } from "./utils";
 
 const ZERO = BigInt.fromI32(0);
 
@@ -23,10 +25,13 @@ function bigIntMin(a: BigInt, b: BigInt): BigInt {
   return a.lt(b) ? a : b;
 }
 
+// Returns ZERO when the call reverts or the contract returns type(uint256).max
+// (which happens when bcTokensPool == 0 after migration — the token is sold out).
 function fetchSpotPrice(bcAddress: Address, token: Address): BigInt {
   const bc = BondingCurve.bind(bcAddress);
   const result = bc.try_getSpotPrice(token);
-  return result.reverted ? ZERO : result.value;
+  if (result.reverted) return ZERO;
+  return result.value.gt(MAX_SPOT_PRICE) ? ZERO : result.value;
 }
 
 function upsertOnePeriodStat(
@@ -138,20 +143,77 @@ function upsertSnapshot(
 }
 
 export function handleTokenRegistered(event: TokenRegistered): void {
-  const token = Token.load(event.params.token);
-  if (token == null) return;
+  let token = Token.load(event.params.token);
 
-  const price = fetchSpotPrice(event.address, event.params.token);
-  token.lastKnownPrice = price;
-  token.save();
+  if (token == null) {
+    // Token not yet created — either an old-factory token (TokenCreated never fires for it)
+    // or a new-factory token where TokenRegistered fires in the same tx before TokenCreated.
+    token = new Token(event.params.token);
+    token.creator            = event.params.creator;
+    token.totalSupply        = event.params.totalSupply;
+    token.virtualBNB         = event.params.virtualBNB;
+    token.migrationTarget    = event.params.migrationTarget;
+    token.tokenType          = detectTokenType(event.transaction.input);
+    // antibotEnabled and tradingBlock are not in this event; handleTokenCreated will overwrite
+    // if the token came from the new indexed factory.
+    token.antibotEnabled     = false;
+    token.tradingBlock       = ZERO;
+    token.raisedBNB          = ZERO;
+    token.migrated           = false;
+    token.buysCount          = ZERO;
+    token.sellsCount         = ZERO;
+    token.totalVolumeBNBBuy  = ZERO;
+    token.totalVolumeBNBSell = ZERO;
+    token.lastKnownPrice     = ZERO;
+    token.createdAtTimestamp   = event.block.timestamp;
+    token.createdAtBlockNumber = event.block.number;
+    token.txHash               = event.transaction.hash;
+
+    const tc = TokenContract.bind(event.params.token);
+    const nameResult   = tc.try_name();
+    const symbolResult = tc.try_symbol();
+    if (!nameResult.reverted)   token.name   = nameResult.value;
+    if (!symbolResult.reverted) token.symbol = symbolResult.value;
+
+    const metaResult = tc.try_metaURI();
+    if (!metaResult.reverted && metaResult.value.length > 0) {
+      token.metaUri = metaResult.value;
+      loadIpfsMetadata(token, metaResult.value);
+    }
+
+    // Seed initial spot price from this bonding curve.
+    const price = fetchSpotPrice(event.address, event.params.token);
+    if (!price.equals(ZERO)) token.lastKnownPrice = price;
+
+    token.save();
+    MemeToken.create(event.params.token);
+
+    const factory = getOrCreateFactory();
+    factory.totalTokensCreated = factory.totalTokensCreated.plus(BigInt.fromI32(1));
+    const tt = token.tokenType;
+    if (tt == "STANDARD")        factory.totalStandardTokens   = factory.totalStandardTokens.plus(BigInt.fromI32(1));
+    else if (tt == "TAX")        factory.totalTaxTokens        = factory.totalTaxTokens.plus(BigInt.fromI32(1));
+    else if (tt == "REFLECTION") factory.totalReflectionTokens = factory.totalReflectionTokens.plus(BigInt.fromI32(1));
+    else                         factory.totalUnknownTokens    = factory.totalUnknownTokens.plus(BigInt.fromI32(1));
+    factory.save();
+  } else {
+    // Token already exists (created by handleTokenCreated in a previous call — shouldn't normally
+    // happen since TokenRegistered fires before TokenCreated in the same tx, but handle gracefully).
+    const price = fetchSpotPrice(event.address, event.params.token);
+    if (!price.equals(ZERO)) token.lastKnownPrice = price;
+    token.save();
+  }
 }
 
 export function handleTokenBought(event: TokenBought): void {
   const token = Token.load(event.params.token);
   if (token == null) return;
 
-  const openPrice  = token.lastKnownPrice;
-  const closePrice = fetchSpotPrice(event.address, event.params.token);
+  const openPrice = token.lastKnownPrice;
+  // fetchSpotPrice returns ZERO when the token is migrated (poolTokens == 0 → type(uint256).max sentinel).
+  // Fall back to openPrice so the final candle closes at the last real price, not a corrupted value.
+  const fetched   = fetchSpotPrice(event.address, event.params.token);
+  const closePrice = fetched.equals(ZERO) ? openPrice : fetched;
 
   upsertSnapshot(
     event.params.token,
@@ -205,7 +267,8 @@ export function handleTokenSold(event: TokenSold): void {
   if (token == null) return;
 
   const openPrice  = token.lastKnownPrice;
-  const closePrice = fetchSpotPrice(event.address, event.params.token);
+  const fetched    = fetchSpotPrice(event.address, event.params.token);
+  const closePrice = fetched.equals(ZERO) ? openPrice : fetched;
 
   upsertSnapshot(
     event.params.token,

@@ -3433,6 +3433,8 @@ The Spark system lets anyone launch an ownerless ERC-20 token with a permanent U
     quoteToken
     feeWallet
     pool
+    token0
+    token1
     tokenId
     claimCount
     totalCreatorFees0
@@ -3464,6 +3466,8 @@ The Spark system lets anyone launch an ownerless ERC-20 token with a permanent U
         "quoteToken": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
         "feeWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
         "pool": "0x1234abcd1234abcd1234abcd1234abcd1234abcd",
+        "token0": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
+        "token1": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
         "tokenId": "12345",
         "claimCount": "3",
         "totalCreatorFees0": "450000000000000000",
@@ -3495,6 +3499,8 @@ The Spark system lets anyone launch an ownerless ERC-20 token with a permanent U
     quoteToken
     feeWallet
     pool
+    token0
+    token1
     tokenId
     claimCount
     totalCreatorFees0
@@ -3537,6 +3543,8 @@ The Spark system lets anyone launch an ownerless ERC-20 token with a permanent U
       "quoteToken": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
       "feeWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
       "pool": "0x1234abcd1234abcd1234abcd1234abcd1234abcd",
+      "token0": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
+      "token1": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
       "tokenId": "12345",
       "claimCount": "3",
       "totalCreatorFees0": "450000000000000000",
@@ -3739,6 +3747,7 @@ The Spark system lets anyone launch an ownerless ERC-20 token with a permanent U
     launchFee
     decimals
     enabled
+    isNative
   }
 }
 ```
@@ -3751,9 +3760,17 @@ The Spark system lets anyone launch an ownerless ERC-20 token with a permanent U
     "sparkQuoteTokens": [
       {
         "id": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-        "launchFee": "100000000000000000",
+        "launchFee": "500000000000000",
         "decimals": 18,
-        "enabled": true
+        "enabled": true,
+        "isNative": true
+      },
+      {
+        "id": "0x55d398326f99059ff775485246999027b3197955",
+        "launchFee": "1000000000000000000",
+        "decimals": 18,
+        "enabled": true,
+        "isNative": false
       }
     ]
   }

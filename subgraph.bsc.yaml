@@ -17,7 +17,7 @@ dataSources:
     source:
       address: "0xB9d4d353C53D83159758a3B5787e744B9F999463"
       abi: LaunchpadFactory
-      startBlock: 91706714
+      startBlock: 105241511
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -31,6 +31,8 @@ dataSources:
           file: ./abis/LaunchpadFactory.json
         - name: Token
           file: ./abis/Token.json
+        - name: BondingCurve
+          file: ./abis/BondingCurve.json
       eventHandlers:
         - event: TokenCreated(indexed address,indexed address,uint256,uint256,uint256,bool,uint256)
           handler: handleTokenCreated
@@ -62,7 +64,7 @@ dataSources:
     source:
       address: "0xbB843b111639B9F19E575e3804b7c006eE1F80a9"
       abi: BondingCurve
-      startBlock: 91706714
+      startBlock: 91692027
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -77,6 +79,8 @@ dataSources:
       abis:
         - name: BondingCurve
           file: ./abis/BondingCurve.json
+        - name: Token
+          file: ./abis/Token.json
       eventHandlers:
         - event: TokenRegistered(indexed address,indexed address,uint256,uint256,uint256)
           handler: handleTokenRegistered
@@ -102,7 +106,7 @@ dataSources:
     source:
       address: "0x1fFBE03316743187fCEC8eA41fd76f8Ada74658C"
       abi: VestingWallet
-      startBlock: 91706714
+      startBlock: 91692404
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -128,7 +132,7 @@ dataSources:
     source:
       address: "0x6C6e9740753d9F6C1E5D61C8bc0f34E37590f6C5"
       abi: OneCoinLocker
-      startBlock: 91706714
+      startBlock: 100627321
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -166,7 +170,7 @@ dataSources:
     source:
       address: "0x327A4d9360a96fe0d782235D35927A7Ea0a85b52"
       abi: SparkLauncher
-      startBlock: 105227180
+      startBlock: 105169623
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -199,7 +203,7 @@ dataSources:
     source:
       address: "0xae04d8C894162213dcDE6e9bA4f5a42eE00f5950"
       abi: SparkLocker
-      startBlock: 105227180
+      startBlock: 105163006
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7

@@ -1,4 +1,4 @@
-import { BigInt, Bytes } from "@graphprotocol/graph-ts";
+import { Address, BigInt, Bytes } from "@graphprotocol/graph-ts";
 import {
   TokenLaunched,
   DexAdded,
@@ -6,12 +6,33 @@ import {
   QuoteTokenAdded,
   QuoteTokenDisabled,
 } from "../generated/SparkLauncher/SparkLauncher";
+import { SparkLauncher as SparkLauncherContract } from "../generated/SparkLauncher/SparkLauncher";
 import { SparkToken as SparkTokenContract } from "../generated/SparkLauncher/SparkToken";
 import {
   SparkLaunchedToken,
   SparkDex,
   SparkQuoteToken,
 } from "../generated/schema";
+
+// Seed the constructor-set WETH quote token (no QuoteTokenAdded event is emitted for it).
+// Called the first time a DexAdded event is processed (i.e. from the constructor).
+function seedWethQuoteToken(launcherAddress: Address): void {
+  const launcher = SparkLauncherContract.bind(launcherAddress);
+  const wethResult = launcher.try_weth();
+  if (wethResult.reverted) return;
+
+  const wethAddr = wethResult.value;
+  if (SparkQuoteToken.load(wethAddr) != null) return; // already seeded
+
+  // The constructor hardcodes launchFee = 0.0005 ETH = 5e14 wei, decimals = 18, isNative = true.
+  // Any subsequent change emits QuoteTokenAdded, which handleQuoteTokenAdded will catch.
+  const qt = new SparkQuoteToken(wethAddr);
+  qt.launchFee = BigInt.fromString("500000000000000");
+  qt.decimals  = 18;
+  qt.enabled   = true;
+  qt.isNative  = true;
+  qt.save();
+}
 
 export function handleTokenLaunched(event: TokenLaunched): void {
   const sparkToken = new SparkLaunchedToken(event.params.token);
@@ -37,6 +58,13 @@ export function handleTokenLaunched(event: TokenLaunched): void {
     ? dex.positionManager
     : Bytes.empty();
 
+  // Determine Uniswap V3 pair ordering: token0 is the lower address.
+  const tokenHex     = event.params.token.toHexString();
+  const quoteHex     = event.params.quoteToken.toHexString();
+  const tokenIsLower = tokenHex < quoteHex;
+  sparkToken.token0  = tokenIsLower ? event.params.token     : event.params.quoteToken;
+  sparkToken.token1  = tokenIsLower ? event.params.quoteToken : event.params.token;
+
   sparkToken.totalCreatorFees0  = BigInt.fromI32(0);
   sparkToken.totalCreatorFees1  = BigInt.fromI32(0);
   sparkToken.totalPlatformFees0 = BigInt.fromI32(0);
@@ -54,7 +82,8 @@ export function handleTokenLaunched(event: TokenLaunched): void {
 
 export function handleDexAdded(event: DexAdded): void {
   let dex = SparkDex.load(event.params.factory);
-  if (dex == null) {
+  const isFirst = dex == null;
+  if (isFirst) {
     dex = new SparkDex(event.params.factory);
     dex.addedAtTimestamp   = event.block.timestamp;
     dex.addedAtBlockNumber = event.block.number;
@@ -63,6 +92,10 @@ export function handleDexAdded(event: DexAdded): void {
   dex.router          = event.params.router;
   dex.enabled         = true;
   dex.save();
+
+  // The constructor emits DexAdded but never emits QuoteTokenAdded for the initial WETH
+  // quote token. Seed it here on the very first DexAdded event we ever see.
+  if (isFirst) seedWethQuoteToken(event.address);
 }
 
 export function handleDexDisabled(event: DexDisabled): void {
@@ -78,6 +111,13 @@ export function handleQuoteTokenAdded(event: QuoteTokenAdded): void {
   qt.launchFee = event.params.fee;
   qt.decimals  = event.params.decimals;
   qt.enabled   = true;
+
+  // Determine isNative by comparing to the launcher's WETH address.
+  const launcher   = SparkLauncherContract.bind(event.address);
+  const wethResult = launcher.try_weth();
+  qt.isNative = !wethResult.reverted &&
+    event.params.token.toHexString() == wethResult.value.toHexString();
+
   qt.save();
 }
 

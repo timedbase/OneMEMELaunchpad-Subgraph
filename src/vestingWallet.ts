@@ -12,8 +12,11 @@ export function handleVestingAdded(event: VestingAdded): void {
   let schedule = VestingSchedule.load(id);
   if (schedule == null) {
     schedule = new VestingSchedule(id);
-    schedule.claimed = BigInt.fromI32(0); // only initialise on first creation
   }
+  // VestingAdded always represents a fresh on-chain schedule (the contract reverts if one already
+  // exists and the previous one must have been voided first, which zeros s.claimed on-chain).
+  // Always reset claimed here so a re-created schedule doesn't carry over stale claim history.
+  schedule.claimed = BigInt.fromI32(0);
   schedule.token       = event.params.token;
   schedule.beneficiary = event.params.beneficiary;
   schedule.amount      = event.params.amount;

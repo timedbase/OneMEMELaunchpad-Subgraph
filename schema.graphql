@@ -294,6 +294,8 @@ type SparkQuoteToken @entity {
   launchFee: BigInt!
   decimals: Int!
   enabled: Boolean!
+  " True when the fee is paid in native ETH (WETH used as the pool token) "
+  isNative: Boolean!
 }
 
 """
@@ -314,6 +316,9 @@ type SparkLaunchedToken @entity {
   quoteToken: Bytes!
   feeWallet: Bytes!
   pool: Bytes!
+  " Uniswap V3 pair composition (lower address = token0, higher = token1) "
+  token0: Bytes!
+  token1: Bytes!
   " LP NFT id held by SparkLocker "
   tokenId: BigInt!
   " True if the LP NFT was emergency-withdrawn by the locker owner "

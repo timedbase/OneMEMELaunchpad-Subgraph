@@ -1,5 +1,7 @@
-import { BigInt, Bytes, ipfs, json, JSONValueKind } from "@graphprotocol/graph-ts";
+import { BigInt, Bytes } from "@graphprotocol/graph-ts";
 import { Token as TokenContract } from "../generated/LaunchpadFactory/Token";
+import { LaunchpadFactory as LaunchpadFactoryContract } from "../generated/LaunchpadFactory/LaunchpadFactory";
+import { BondingCurve } from "../generated/BondingCurve/BondingCurve";
 import { MemeToken } from "../generated/templates";
 import {
   TokenCreated,
@@ -15,60 +17,19 @@ import {
   TimelockCancelled,
 } from "../generated/LaunchpadFactory/LaunchpadFactory";
 import { Token, TimelockAction } from "../generated/schema";
-import { getOrCreateFactory, detectTokenType } from "./utils";
-
-function loadIpfsMetadata(token: Token, uri: string): void {
-  const path = uri.startsWith("ipfs://") ? uri.slice(7) : uri;
-  const data = ipfs.cat(path);
-  if (!data) return; // truthy check — 'data != null' crashes AS compiler on Bytes | null
-
-  const result = json.try_fromBytes(data as Bytes);
-  if (result.isError) return;
-
-  const obj = result.value.toObject();
-
-  const descVal = obj.get("description");
-  if (descVal && descVal.kind == JSONValueKind.STRING) token.description = descVal.toString();
-
-  const imageVal = obj.get("image");
-  if (imageVal && imageVal.kind == JSONValueKind.STRING) {
-    let img = imageVal.toString();
-    if (img.startsWith("ipfs://")) img = img.slice(7);
-    token.image = img;
-  }
-
-  const websiteVal = obj.get("website");
-  if (websiteVal && websiteVal.kind == JSONValueKind.STRING) token.website = websiteVal.toString();
-
-  const twitterVal = obj.get("twitter");
-  if (twitterVal && twitterVal.kind == JSONValueKind.STRING) token.twitter = twitterVal.toString();
-
-  const telegramVal = obj.get("telegram");
-  if (telegramVal && telegramVal.kind == JSONValueKind.STRING) token.telegram = telegramVal.toString();
-
-  // Also check nested socials object (flat fields take priority)
-  const socialsVal = obj.get("socials");
-  if (socialsVal && socialsVal.kind == JSONValueKind.OBJECT) {
-    const socials = socialsVal.toObject();
-    if (!token.website) {
-      const v = socials.get("website");
-      if (v && v.kind == JSONValueKind.STRING) token.website = v.toString();
-    }
-    if (!token.twitter) {
-      const v = socials.get("twitter");
-      if (v && v.kind == JSONValueKind.STRING) token.twitter = v.toString();
-    }
-    if (!token.telegram) {
-      const v = socials.get("telegram");
-      if (v && v.kind == JSONValueKind.STRING) token.telegram = v.toString();
-    }
-  }
-}
+import { getOrCreateFactory, detectTokenType, loadIpfsMetadata, MAX_SPOT_PRICE } from "./utils";
 
 export function handleTokenCreated(event: TokenCreated): void {
   const tokenType = detectTokenType(event.transaction.input);
 
-  const token = new Token(event.params.token);
+  // Token may already exist: handleTokenRegistered on BondingCurve fires before
+  // handleTokenCreated in the same tx and creates the entity with partial data.
+  // Here we overwrite with the complete factory-event data (antibotEnabled, tradingBlock)
+  // and do not double-count in factory stats.
+  let token = Token.load(event.params.token);
+  const isNew = token == null;
+  if (isNew) token = new Token(event.params.token);
+
   token.creator         = event.params.creator;
   token.totalSupply     = event.params.totalSupply;
   token.tokenType       = tokenType;
@@ -76,16 +37,19 @@ export function handleTokenCreated(event: TokenCreated): void {
   token.migrationTarget = event.params.migrationTarget;
   token.antibotEnabled  = event.params.antibotEnabled;
   token.tradingBlock    = event.params.tradingBlock;
-  token.raisedBNB       = BigInt.fromI32(0);
-  token.migrated        = false;
-  token.buysCount       = BigInt.fromI32(0);
-  token.sellsCount      = BigInt.fromI32(0);
-  token.totalVolumeBNBBuy  = BigInt.fromI32(0);
-  token.totalVolumeBNBSell = BigInt.fromI32(0);
-  token.lastKnownPrice  = BigInt.fromI32(0); // seeded by handleTokenRegistered once the bonding curve registers it
-  token.createdAtTimestamp   = event.block.timestamp;
-  token.createdAtBlockNumber = event.block.number;
-  token.txHash = event.transaction.hash;
+
+  if (isNew) {
+    token.raisedBNB          = BigInt.fromI32(0);
+    token.migrated           = false;
+    token.buysCount          = BigInt.fromI32(0);
+    token.sellsCount         = BigInt.fromI32(0);
+    token.totalVolumeBNBBuy  = BigInt.fromI32(0);
+    token.totalVolumeBNBSell = BigInt.fromI32(0);
+    token.lastKnownPrice     = BigInt.fromI32(0);
+    token.createdAtTimestamp   = event.block.timestamp;
+    token.createdAtBlockNumber = event.block.number;
+    token.txHash = event.transaction.hash;
+  }
 
   const tokenContract = TokenContract.bind(event.params.token);
   const nameResult    = tokenContract.try_name();
@@ -100,16 +64,29 @@ export function handleTokenCreated(event: TokenCreated): void {
     loadIpfsMetadata(token, uri);
   }
 
-  token.save();
-  MemeToken.create(event.params.token);
+  // Seed initial spot price from bonding curve (overrides the value set in handleTokenRegistered).
+  const factoryContract = LaunchpadFactoryContract.bind(event.address);
+  const migratorResult  = factoryContract.try_migrator();
+  if (!migratorResult.reverted) {
+    const priceResult = BondingCurve.bind(migratorResult.value).try_getSpotPrice(event.params.token);
+    if (!priceResult.reverted && priceResult.value.lt(MAX_SPOT_PRICE)) {
+      token.lastKnownPrice = priceResult.value;
+    }
+  }
 
-  const factory = getOrCreateFactory();
-  factory.totalTokensCreated = factory.totalTokensCreated.plus(BigInt.fromI32(1));
-  if (tokenType == "STANDARD")        factory.totalStandardTokens   = factory.totalStandardTokens.plus(BigInt.fromI32(1));
-  else if (tokenType == "TAX")        factory.totalTaxTokens        = factory.totalTaxTokens.plus(BigInt.fromI32(1));
-  else if (tokenType == "REFLECTION") factory.totalReflectionTokens = factory.totalReflectionTokens.plus(BigInt.fromI32(1));
-  else                                factory.totalUnknownTokens    = factory.totalUnknownTokens.plus(BigInt.fromI32(1));
-  factory.save();
+  token.save();
+
+  if (isNew) {
+    MemeToken.create(event.params.token);
+
+    const factory = getOrCreateFactory();
+    factory.totalTokensCreated = factory.totalTokensCreated.plus(BigInt.fromI32(1));
+    if (tokenType == "STANDARD")        factory.totalStandardTokens   = factory.totalStandardTokens.plus(BigInt.fromI32(1));
+    else if (tokenType == "TAX")        factory.totalTaxTokens        = factory.totalTaxTokens.plus(BigInt.fromI32(1));
+    else if (tokenType == "REFLECTION") factory.totalReflectionTokens = factory.totalReflectionTokens.plus(BigInt.fromI32(1));
+    else                                factory.totalUnknownTokens    = factory.totalUnknownTokens.plus(BigInt.fromI32(1));
+    factory.save();
+  }
 }
 
 export function handleDefaultParamsUpdated(event: DefaultParamsUpdated): void {
