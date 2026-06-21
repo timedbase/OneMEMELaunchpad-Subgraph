@@ -81,10 +81,11 @@ export function handleTokenLaunched(event: TokenLaunched): void {
 }
 
 export function handleDexAdded(event: DexAdded): void {
-  let dex = SparkDex.load(event.params.factory);
-  const isFirst = dex == null;
+  const existingDex = SparkDex.load(event.params.factory);
+  const isFirst = existingDex === null;
+  const dex: SparkDex = existingDex !== null ? existingDex : new SparkDex(event.params.factory);
+
   if (isFirst) {
-    dex = new SparkDex(event.params.factory);
     dex.addedAtTimestamp   = event.block.timestamp;
     dex.addedAtBlockNumber = event.block.number;
   }

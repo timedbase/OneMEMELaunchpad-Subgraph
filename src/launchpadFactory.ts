@@ -1,4 +1,4 @@
-import { BigInt, Bytes } from "@graphprotocol/graph-ts";
+import { BigInt } from "@graphprotocol/graph-ts";
 import { Token as TokenContract } from "../generated/LaunchpadFactory/Token";
 import { LaunchpadFactory as LaunchpadFactoryContract } from "../generated/LaunchpadFactory/LaunchpadFactory";
 import { BondingCurve } from "../generated/BondingCurve/BondingCurve";
@@ -26,9 +26,9 @@ export function handleTokenCreated(event: TokenCreated): void {
   // handleTokenCreated in the same tx and creates the entity with partial data.
   // Here we overwrite with the complete factory-event data (antibotEnabled, tradingBlock)
   // and do not double-count in factory stats.
-  let token = Token.load(event.params.token);
-  const isNew = token == null;
-  if (isNew) token = new Token(event.params.token);
+  const existing = Token.load(event.params.token);
+  const isNew = existing === null;
+  const token: Token = existing !== null ? existing : new Token(event.params.token);
 
   token.creator         = event.params.creator;
   token.totalSupply     = event.params.totalSupply;
