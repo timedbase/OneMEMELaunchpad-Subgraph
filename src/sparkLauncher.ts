@@ -12,7 +12,9 @@ import {
   SparkLaunchedToken,
   SparkDex,
   SparkQuoteToken,
+  SparkPool,
 } from "../generated/schema";
+import { UniswapV3Pool, SparkToken as SparkTokenTemplate } from "../generated/templates";
 
 // Seed the constructor-set WETH quote token (no QuoteTokenAdded event is emitted for it).
 // Called the first time a DexAdded event is processed (i.e. from the constructor).
@@ -74,10 +76,26 @@ export function handleTokenLaunched(event: TokenLaunched): void {
   sparkToken.claimCount         = BigInt.fromI32(0);
   sparkToken.lpWithdrawn        = false;
 
+  sparkToken.tradeCount        = BigInt.fromI32(0);
+  sparkToken.totalVolumeToken  = BigInt.fromI32(0);
+  sparkToken.totalVolumeQuote  = BigInt.fromI32(0);
+
   sparkToken.createdAtTimestamp   = event.block.timestamp;
   sparkToken.createdAtBlockNumber = event.block.number;
   sparkToken.txHash               = event.transaction.hash;
   sparkToken.save();
+
+  // Register pool lookup so the Swap handler can resolve this token.
+  const pool = new SparkPool(event.params.pool);
+  pool.token         = event.params.token;
+  pool.sparkIsToken0 = tokenIsLower;
+  pool.save();
+
+  // Start indexing Swap events from this pool.
+  UniswapV3Pool.create(event.params.pool);
+
+  // Start indexing Transfer events for holder tracking.
+  SparkTokenTemplate.create(event.params.token);
 }
 
 export function handleDexAdded(event: DexAdded): void {

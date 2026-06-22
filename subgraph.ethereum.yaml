@@ -254,3 +254,41 @@ templates:
         - event: Transfer(indexed address,indexed address,uint256)
           handler: handleTransfer
       file: ./src/memeToken.ts
+  - kind: ethereum
+    name: UniswapV3Pool
+    network: mainnet
+    source:
+      abi: UniswapV3Pool
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - SparkPool
+        - SparkLaunchedToken
+        - SparkTrade
+      abis:
+        - name: UniswapV3Pool
+          file: ./abis/UniswapV3Pool.json
+      eventHandlers:
+        - event: Swap(indexed address,indexed address,int256,int256,uint160,uint128,int24)
+          handler: handleSwap
+      file: ./src/sparkPool.ts
+  - kind: ethereum
+    name: SparkToken
+    network: mainnet
+    source:
+      abi: SparkToken
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - SparkHolder
+      abis:
+        - name: SparkToken
+          file: ./abis/SparkToken.json
+      eventHandlers:
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleTransfer
+      file: ./src/sparkToken.ts

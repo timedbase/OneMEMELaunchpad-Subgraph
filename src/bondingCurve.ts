@@ -1,5 +1,5 @@
 import { Address, BigInt, Bytes } from "@graphprotocol/graph-ts";
-import { MAX_SPOT_PRICE, getOrCreateFactory, detectTokenType, loadIpfsMetadata } from "./utils";
+import { getOrCreateFactory, detectTokenType, loadIpfsMetadata } from "./utils";
 import {
   TokenRegistered,
   TokenBought,
@@ -10,12 +10,12 @@ import {
   CharityWalletUpdated,
   RouterUpdated,
 } from "../generated/BondingCurve/BondingCurve";
-import { BondingCurve } from "../generated/BondingCurve/BondingCurve";
 import { Token as TokenContract } from "../generated/BondingCurve/Token";
 import { MemeToken } from "../generated/templates";
 import { Token, Trade, Migration, TokenSnapshot, TokenPeriodStats } from "../generated/schema";
 
-const ZERO = BigInt.fromI32(0);
+const ZERO    = BigInt.fromI32(0);
+const ONE_E18 = BigInt.fromString("1000000000000000000");
 
 function bigIntMax(a: BigInt, b: BigInt): BigInt {
   return a.gt(b) ? a : b;
@@ -25,13 +25,10 @@ function bigIntMin(a: BigInt, b: BigInt): BigInt {
   return a.lt(b) ? a : b;
 }
 
-// Returns ZERO when the call reverts or the contract returns type(uint256).max
-// (which happens when bcTokensPool == 0 after migration — the token is sold out).
-function fetchSpotPrice(bcAddress: Address, token: Address): BigInt {
-  const bc = BondingCurve.bind(bcAddress);
-  const result = bc.try_getSpotPrice(token);
-  if (result.reverted) return ZERO;
-  return result.value.gt(MAX_SPOT_PRICE) ? ZERO : result.value;
+// AMM spot price: (virtualBNB + raisedBNB) × 1e18 / bcTokensPool
+function computePrice(virtualBNB: BigInt, raisedBNB: BigInt, bcTokensPool: BigInt): BigInt {
+  if (bcTokensPool.equals(ZERO)) return ZERO;
+  return virtualBNB.plus(raisedBNB).times(ONE_E18).div(bcTokensPool);
 }
 
 function upsertOnePeriodStat(
@@ -164,7 +161,8 @@ export function handleTokenRegistered(event: TokenRegistered): void {
     token.sellsCount         = ZERO;
     token.totalVolumeBNBBuy  = ZERO;
     token.totalVolumeBNBSell = ZERO;
-    token.lastKnownPrice     = ZERO;
+    token.bcTokensPool   = ZERO;
+    token.lastKnownPrice = ZERO;
     token.createdAtTimestamp   = event.block.timestamp;
     token.createdAtBlockNumber = event.block.number;
     token.txHash               = event.transaction.hash;
@@ -181,9 +179,12 @@ export function handleTokenRegistered(event: TokenRegistered): void {
       loadIpfsMetadata(token, metaResult.value);
     }
 
-    // Seed initial spot price from this bonding curve.
-    const price = fetchSpotPrice(event.address, event.params.token);
-    if (!price.equals(ZERO)) token.lastKnownPrice = price;
+    // Seed pool size and initial price from the BC's current token balance.
+    const balanceResult = tc.try_balanceOf(event.address);
+    if (!balanceResult.reverted && balanceResult.value.gt(ZERO)) {
+      token.bcTokensPool = balanceResult.value;
+      token.lastKnownPrice = computePrice(event.params.virtualBNB, ZERO, balanceResult.value);
+    }
 
     token.save();
     MemeToken.create(event.params.token);
@@ -197,10 +198,16 @@ export function handleTokenRegistered(event: TokenRegistered): void {
     else                         factory.totalUnknownTokens    = factory.totalUnknownTokens.plus(BigInt.fromI32(1));
     factory.save();
   } else {
-    // Token already exists (created by handleTokenCreated in a previous call — shouldn't normally
-    // happen since TokenRegistered fires before TokenCreated in the same tx, but handle gracefully).
-    const price = fetchSpotPrice(event.address, event.params.token);
-    if (!price.equals(ZERO)) token.lastKnownPrice = price;
+    // Token already exists (created by handleTokenCreated in the same tx — handle gracefully).
+    // Re-seed bcTokensPool if it's still zero (e.g. TokenCreated fired first and zeroed it).
+    if (token.bcTokensPool.equals(ZERO)) {
+      const tc2 = TokenContract.bind(event.params.token);
+      const bal = tc2.try_balanceOf(event.address);
+      if (!bal.reverted && bal.value.gt(ZERO)) {
+        token.bcTokensPool   = bal.value;
+        token.lastKnownPrice = computePrice(event.params.virtualBNB, ZERO, bal.value);
+      }
+    }
     token.save();
   }
 }
@@ -209,11 +216,13 @@ export function handleTokenBought(event: TokenBought): void {
   const token = Token.load(event.params.token);
   if (token == null) return;
 
-  const openPrice = token.lastKnownPrice;
-  // fetchSpotPrice returns ZERO when the token is migrated (poolTokens == 0 → type(uint256).max sentinel).
-  // Fall back to openPrice so the final candle closes at the last real price, not a corrupted value.
-  const fetched   = fetchSpotPrice(event.address, event.params.token);
-  const closePrice = fetched.equals(ZERO) ? openPrice : fetched;
+  // Price = (virtualBNB + raisedBNB) × 1e18 / bcTokensPool  (constant-product AMM spot price)
+  const openPrice      = computePrice(token.virtualBNB, token.raisedBNB, token.bcTokensPool);
+  const grossTokensOut = event.params.tokensOut.plus(event.params.tokensToDead);
+  const newBcTokens    = token.bcTokensPool.gt(grossTokensOut)
+    ? token.bcTokensPool.minus(grossTokensOut)
+    : ZERO;
+  const closePrice     = computePrice(token.virtualBNB, event.params.raisedBNB, newBcTokens);
 
   upsertSnapshot(
     event.params.token,
@@ -251,6 +260,7 @@ export function handleTokenBought(event: TokenBought): void {
   trade.txHash         = event.transaction.hash;
   trade.save();
 
+  token.bcTokensPool      = newBcTokens;
   token.raisedBNB         = event.params.raisedBNB;
   token.buysCount         = token.buysCount.plus(BigInt.fromI32(1));
   token.totalVolumeBNBBuy = token.totalVolumeBNBBuy.plus(event.params.bnbIn);
@@ -266,9 +276,9 @@ export function handleTokenSold(event: TokenSold): void {
   const token = Token.load(event.params.token);
   if (token == null) return;
 
-  const openPrice  = token.lastKnownPrice;
-  const fetched    = fetchSpotPrice(event.address, event.params.token);
-  const closePrice = fetched.equals(ZERO) ? openPrice : fetched;
+  const openPrice   = computePrice(token.virtualBNB, token.raisedBNB, token.bcTokensPool);
+  const newBcTokens = token.bcTokensPool.plus(event.params.tokensIn);
+  const closePrice  = computePrice(token.virtualBNB, event.params.raisedBNB, newBcTokens);
 
   upsertSnapshot(
     event.params.token,
@@ -306,6 +316,7 @@ export function handleTokenSold(event: TokenSold): void {
   trade.txHash         = event.transaction.hash;
   trade.save();
 
+  token.bcTokensPool       = newBcTokens;
   token.raisedBNB          = event.params.raisedBNB;
   token.sellsCount         = token.sellsCount.plus(BigInt.fromI32(1));
   token.totalVolumeBNBSell = token.totalVolumeBNBSell.plus(event.params.bnbOut);
@@ -327,7 +338,8 @@ export function handleTokenMigrated(event: TokenMigrated): void {
   token.migrationLiquidityTokens = event.params.liquidityTokens;
   token.migratedAtTimestamp      = event.block.timestamp;
   token.migratedAtBlockNumber    = event.block.number;
-  token.raisedBNB                = ZERO; // contract resets pool after migration
+  token.raisedBNB                = ZERO;
+  token.bcTokensPool             = ZERO;
   token.save();
 
   const migrationId = event.transaction.hash.concatI32(event.logIndex.toI32());
