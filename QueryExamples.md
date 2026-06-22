@@ -24,8 +24,10 @@ BNB amounts are stored in wei — divide by `1e18` to get BNB.
 12. [Trending Tokens](#trending-tokens)
 13. [OneCoinLocker](#onecoinlocker)
 14. [Spark](#spark)
-15. [Analytics & combined queries](#analytics--combined-queries)
-16. [Pagination](#pagination)
+15. [Spark Trades](#spark-trades)
+16. [Spark Holders](#spark-holders)
+17. [Analytics & combined queries](#analytics--combined-queries)
+18. [Pagination](#pagination)
 
 ---
 
@@ -3443,6 +3445,9 @@ The Spark system lets anyone launch an ownerless ERC-20 token with a permanent U
     totalPlatformFees1
     totalCharityFees0
     totalCharityFees1
+    tradeCount
+    totalVolumeToken
+    totalVolumeQuote
     createdAtTimestamp
     txHash
   }
@@ -3476,6 +3481,9 @@ The Spark system lets anyone launch an ownerless ERC-20 token with a permanent U
         "totalPlatformFees1": "320000000000000000",
         "totalCharityFees0": "32000000000000000",
         "totalCharityFees1": "64000000000000000",
+        "tradeCount": "247",
+        "totalVolumeToken": "48200000000000000000000000",
+        "totalVolumeQuote": "9640000000000000000",
         "createdAtTimestamp": "1700086400",
         "txHash": "0xlaun1234laun1234laun1234laun1234laun1234laun1234laun1234laun1234"
       }
@@ -3511,6 +3519,9 @@ The Spark system lets anyone launch an ownerless ERC-20 token with a permanent U
     totalCharityFees1
     createdAtTimestamp
     txHash
+    tradeCount
+    totalVolumeToken
+    totalVolumeQuote
     feeClaims(orderBy: timestamp, orderDirection: desc, first: 20) {
       id
       feeWallet
@@ -3771,6 +3782,534 @@ The Spark system lets anyone launch an ownerless ERC-20 token with a permanent U
         "decimals": 18,
         "enabled": true,
         "isNative": false
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Spark Trades
+
+Each `SparkTrade` is one Uniswap V3 `Swap` event on a Spark token's pool. `isBuy = true` means the Spark token left the pool (someone bought it); `isBuy = false` means it entered (someone sold it). `sparkAmount` and `quoteAmount` are the absolute token amounts involved.
+
+### Recent trades across all Spark tokens
+
+```graphql
+{
+  sparkTrades(orderBy: timestamp, orderDirection: desc, first: 50) {
+    id
+    token { id name symbol }
+    pool
+    sender
+    recipient
+    isBuy
+    sparkAmount
+    quoteAmount
+    sqrtPriceX96
+    tick
+    timestamp
+    blockNumber
+    txHash
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "sparkTrades": [
+      {
+        "id": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd12340000",
+        "token": {
+          "id": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
+          "name": "SparkPepe",
+          "symbol": "SPPE"
+        },
+        "pool": "0x1234abcd1234abcd1234abcd1234abcd1234abcd",
+        "sender": "0xccddee001122ccddee001122ccddee001122ccdd",
+        "recipient": "0xccddee001122ccddee001122ccddee001122ccdd",
+        "isBuy": true,
+        "sparkAmount": "4850000000000000000000000",
+        "quoteAmount": "200000000000000000",
+        "sqrtPriceX96": "7922816251426433759354395033600",
+        "tick": "-207243",
+        "timestamp": "1700086500",
+        "blockNumber": "38120050",
+        "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+      }
+    ]
+  }
+}
+```
+
+### Trades for a specific Spark token
+
+```graphql
+{
+  sparkTrades(
+    where: { token: "0xTOKEN_ADDRESS" }
+    orderBy: timestamp
+    orderDirection: desc
+    first: 100
+  ) {
+    isBuy
+    sender
+    recipient
+    sparkAmount
+    quoteAmount
+    sqrtPriceX96
+    tick
+    timestamp
+    txHash
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "sparkTrades": [
+      {
+        "isBuy": true,
+        "sender": "0xccddee001122ccddee001122ccddee001122ccdd",
+        "recipient": "0xccddee001122ccddee001122ccddee001122ccdd",
+        "sparkAmount": "4850000000000000000000000",
+        "quoteAmount": "200000000000000000",
+        "sqrtPriceX96": "7922816251426433759354395033600",
+        "tick": "-207243",
+        "timestamp": "1700086500",
+        "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+      }
+    ]
+  }
+}
+```
+
+### Buys only for a Spark token
+
+```graphql
+{
+  sparkTrades(
+    where: { token: "0xTOKEN_ADDRESS", isBuy: true }
+    orderBy: timestamp
+    orderDirection: desc
+    first: 50
+  ) {
+    recipient
+    sparkAmount
+    quoteAmount
+    timestamp
+    txHash
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "sparkTrades": [
+      {
+        "recipient": "0xccddee001122ccddee001122ccddee001122ccdd",
+        "sparkAmount": "4850000000000000000000000",
+        "quoteAmount": "200000000000000000",
+        "timestamp": "1700086500",
+        "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+      }
+    ]
+  }
+}
+```
+
+### Sells only for a Spark token
+
+```graphql
+{
+  sparkTrades(
+    where: { token: "0xTOKEN_ADDRESS", isBuy: false }
+    orderBy: timestamp
+    orderDirection: desc
+    first: 50
+  ) {
+    sender
+    sparkAmount
+    quoteAmount
+    timestamp
+    txHash
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "sparkTrades": [
+      {
+        "sender": "0x1234567890abcdef1234567890abcdef12345678",
+        "sparkAmount": "2400000000000000000000000",
+        "quoteAmount": "95000000000000000",
+        "timestamp": "1700086400",
+        "txHash": "0xbeef5678beef5678beef5678beef5678beef5678beef5678beef5678beef5678"
+      }
+    ]
+  }
+}
+```
+
+### Spark token with trade history and volume stats
+
+```graphql
+{
+  sparkLaunchedToken(id: "0xTOKEN_ADDRESS") {
+    id
+    name
+    symbol
+    pool
+    quoteToken
+    tradeCount
+    totalVolumeToken
+    totalVolumeQuote
+    trades(orderBy: timestamp, orderDirection: desc, first: 50) {
+      isBuy
+      sparkAmount
+      quoteAmount
+      recipient
+      timestamp
+      txHash
+    }
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "sparkLaunchedToken": {
+      "id": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
+      "name": "SparkPepe",
+      "symbol": "SPPE",
+      "pool": "0x1234abcd1234abcd1234abcd1234abcd1234abcd",
+      "quoteToken": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+      "tradeCount": "247",
+      "totalVolumeToken": "48200000000000000000000000",
+      "totalVolumeQuote": "9640000000000000000",
+      "trades": [
+        {
+          "isBuy": true,
+          "sparkAmount": "4850000000000000000000000",
+          "quoteAmount": "200000000000000000",
+          "recipient": "0xccddee001122ccddee001122ccddee001122ccdd",
+          "timestamp": "1700086500",
+          "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+        }
+      ]
+    }
+  }
+}
+```
+
+### Most active Spark tokens by trade count
+
+```graphql
+{
+  sparkLaunchedTokens(
+    orderBy: tradeCount
+    orderDirection: desc
+    first: 20
+  ) {
+    id
+    name
+    symbol
+    tradeCount
+    totalVolumeToken
+    totalVolumeQuote
+    quoteToken
+    createdAtTimestamp
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "sparkLaunchedTokens": [
+      {
+        "id": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
+        "name": "SparkPepe",
+        "symbol": "SPPE",
+        "tradeCount": "247",
+        "totalVolumeToken": "48200000000000000000000000",
+        "totalVolumeQuote": "9640000000000000000",
+        "quoteToken": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+        "createdAtTimestamp": "1700086400"
+      }
+    ]
+  }
+}
+```
+
+### Trades by a specific wallet across all Spark tokens
+
+```graphql
+{
+  sparkTrades(
+    where: { recipient: "0xWALLET_ADDRESS", isBuy: true }
+    orderBy: timestamp
+    orderDirection: desc
+    first: 50
+  ) {
+    token { id name symbol }
+    sparkAmount
+    quoteAmount
+    timestamp
+    txHash
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "sparkTrades": [
+      {
+        "token": {
+          "id": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
+          "name": "SparkPepe",
+          "symbol": "SPPE"
+        },
+        "sparkAmount": "4850000000000000000000000",
+        "quoteAmount": "200000000000000000",
+        "timestamp": "1700086500",
+        "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Spark Holders
+
+`SparkHolder` tracks the live ERC-20 balance of every address that has received a Spark token via `Transfer` events. Balances update on every transfer — buys, sells, and wallet-to-wallet moves.
+
+`id` = token address concatenated with holder address (40 bytes total).
+
+### All holders of a Spark token — sorted by balance
+
+```graphql
+{
+  sparkHolders(
+    where: { token: "0xTOKEN_ADDRESS" }
+    orderBy: balance
+    orderDirection: desc
+    first: 100
+  ) {
+    id
+    address
+    balance
+    lastUpdatedBlock
+    lastUpdatedTimestamp
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "sparkHolders": [
+      {
+        "id": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111f1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "address": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "balance": "50000000000000000000000000",
+        "lastUpdatedBlock": "38120050",
+        "lastUpdatedTimestamp": "1700086500"
+      },
+      {
+        "id": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111ccddee001122ccddee001122ccddee001122ccdd",
+        "address": "0xccddee001122ccddee001122ccddee001122ccdd",
+        "balance": "4850000000000000000000000",
+        "lastUpdatedBlock": "38120050",
+        "lastUpdatedTimestamp": "1700086500"
+      }
+    ]
+  }
+}
+```
+
+### Top 10 holders (whale list)
+
+```graphql
+{
+  sparkHolders(
+    where: { token: "0xTOKEN_ADDRESS" }
+    orderBy: balance
+    orderDirection: desc
+    first: 10
+  ) {
+    address
+    balance
+    lastUpdatedBlock
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "sparkHolders": [
+      {
+        "address": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "balance": "50000000000000000000000000",
+        "lastUpdatedBlock": "38120050"
+      },
+      {
+        "address": "0xccddee001122ccddee001122ccddee001122ccdd",
+        "balance": "4850000000000000000000000",
+        "lastUpdatedBlock": "38120050"
+      }
+    ]
+  }
+}
+```
+
+### All Spark tokens held by a wallet
+
+```graphql
+{
+  sparkHolders(
+    where: { address: "0xWALLET_ADDRESS" }
+    orderBy: balance
+    orderDirection: desc
+  ) {
+    token { id name symbol quoteToken }
+    balance
+    lastUpdatedBlock
+    lastUpdatedTimestamp
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "sparkHolders": [
+      {
+        "token": {
+          "id": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
+          "name": "SparkPepe",
+          "symbol": "SPPE",
+          "quoteToken": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
+        },
+        "balance": "50000000000000000000000000",
+        "lastUpdatedBlock": "38120050",
+        "lastUpdatedTimestamp": "1700086500"
+      }
+    ]
+  }
+}
+```
+
+### Spark token with holder list
+
+```graphql
+{
+  sparkLaunchedToken(id: "0xTOKEN_ADDRESS") {
+    id
+    name
+    symbol
+    tradeCount
+    totalVolumeQuote
+    holders(orderBy: balance, orderDirection: desc, first: 20) {
+      address
+      balance
+      lastUpdatedBlock
+    }
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "sparkLaunchedToken": {
+      "id": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
+      "name": "SparkPepe",
+      "symbol": "SPPE",
+      "tradeCount": "247",
+      "totalVolumeQuote": "9640000000000000000",
+      "holders": [
+        {
+          "address": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+          "balance": "50000000000000000000000000",
+          "lastUpdatedBlock": "38120050"
+        },
+        {
+          "address": "0xccddee001122ccddee001122ccddee001122ccdd",
+          "balance": "4850000000000000000000000",
+          "lastUpdatedBlock": "38120050"
+        }
+      ]
+    }
+  }
+}
+```
+
+### Holders updated in last N blocks
+
+```graphql
+{
+  sparkHolders(
+    where: {
+      token: "0xTOKEN_ADDRESS"
+      lastUpdatedBlock_gte: "38120000"
+    }
+    orderBy: lastUpdatedBlock
+    orderDirection: desc
+    first: 50
+  ) {
+    address
+    balance
+    lastUpdatedBlock
+    lastUpdatedTimestamp
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "sparkHolders": [
+      {
+        "address": "0xccddee001122ccddee001122ccddee001122ccdd",
+        "balance": "4850000000000000000000000",
+        "lastUpdatedBlock": "38120050",
+        "lastUpdatedTimestamp": "1700086500"
       }
     ]
   }

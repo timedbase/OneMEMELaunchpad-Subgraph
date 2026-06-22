@@ -72,6 +72,8 @@ type Token @entity {
 
   " Current bonding-curve state "
   raisedBNB: BigInt!
+  " Tokens currently held by the bonding curve (decreases on buys, increases on sells) "
+  bcTokensPool: BigInt!
   migrated: Boolean!
 
   " Set after migration "
@@ -333,11 +335,70 @@ type SparkLaunchedToken @entity {
   totalCharityFees1: BigInt!
   claimCount: BigInt!
 
+  " Cumulative trade counts and volume "
+  tradeCount: BigInt!
+  totalVolumeToken: BigInt!
+  totalVolumeQuote: BigInt!
+
   createdAtTimestamp: BigInt!
   createdAtBlockNumber: BigInt!
   txHash: Bytes!
 
   feeClaims: [SparkFeeClaim!]! @derivedFrom(field: "token")
+  trades:    [SparkTrade!]!    @derivedFrom(field: "token")
+  holders:   [SparkHolder!]!  @derivedFrom(field: "token")
+}
+
+"""
+A token holder for a Spark-launched token.
+id = token address + holder address (concatenated bytes).
+"""
+type SparkHolder @entity {
+  id: Bytes!
+  token: SparkLaunchedToken!
+  address: Bytes!
+  balance: BigInt!
+  lastUpdatedBlock: BigInt!
+  lastUpdatedTimestamp: BigInt!
+}
+
+"""
+Lookup table: Uniswap V3 pool address → SparkLaunchedToken.
+Created when a token is launched so the Swap handler can resolve the token.
+"""
+type SparkPool @entity {
+  " Pool contract address "
+  id: Bytes!
+  token: SparkLaunchedToken!
+  " True if the Spark token is token0 in the V3 pool "
+  sparkIsToken0: Boolean!
+}
+
+"""
+A single swap (buy or sell) on a Spark token's Uniswap V3 pool.
+"""
+type SparkTrade @entity {
+  " txHash + logIndex "
+  id: Bytes!
+  token: SparkLaunchedToken!
+  pool: Bytes!
+  sender: Bytes!
+  recipient: Bytes!
+  " Raw signed amounts from the Swap event (negative = leaving pool) "
+  amount0: BigInt!
+  amount1: BigInt!
+  sqrtPriceX96: BigInt!
+  liquidity: BigInt!
+  tick: Int!
+  " True = user bought Spark token, False = user sold Spark token "
+  isBuy: Boolean!
+  " Absolute spark token amount involved "
+  sparkAmount: BigInt!
+  " Absolute quote token amount involved "
+  quoteAmount: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
 }
 
 """
