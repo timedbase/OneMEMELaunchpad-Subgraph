@@ -35,9 +35,10 @@
     "type": "event",
     "name": "QuoteTokenAdded",
     "inputs": [
-      { "name": "token",    "type": "address", "indexed": true  },
-      { "name": "fee",      "type": "uint256", "indexed": false },
-      { "name": "decimals", "type": "uint8",   "indexed": false }
+      { "name": "token",        "type": "address", "indexed": true  },
+      { "name": "fee",          "type": "uint256", "indexed": false },
+      { "name": "decimals",     "type": "uint8",   "indexed": false },
+      { "name": "marketCapRef", "type": "uint256", "indexed": false }
     ],
     "anonymous": false
   },
@@ -46,6 +47,41 @@
     "name": "QuoteTokenDisabled",
     "inputs": [
       { "name": "token", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "LaunchFeeWalletSet",
+    "inputs": [
+      { "name": "wallet", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "LaunchFeeSet",
+    "inputs": [
+      { "name": "token", "type": "address", "indexed": true },
+      { "name": "fee",   "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MarketCapRefSet",
+    "inputs": [
+      { "name": "token",        "type": "address", "indexed": true  },
+      { "name": "marketCapRef", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "DecimalsSet",
+    "inputs": [
+      { "name": "token",    "type": "address", "indexed": true  },
+      { "name": "decimals", "type": "uint8",   "indexed": false }
     ],
     "anonymous": false
   },

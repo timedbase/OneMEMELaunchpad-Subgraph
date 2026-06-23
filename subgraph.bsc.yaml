@@ -168,9 +168,9 @@ dataSources:
     name: SparkLauncher
     network: bsc
     source:
-      address: "0x327A4d9360a96fe0d782235D35927A7Ea0a85b52"
+      address: "0x3BC8D657780060072e59eC71c6E393b980fB99e4"
       abi: SparkLauncher
-      startBlock: 105169623
+      startBlock: 105810629
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -191,10 +191,16 @@ dataSources:
           handler: handleDexAdded
         - event: DexDisabled(indexed address)
           handler: handleDexDisabled
-        - event: QuoteTokenAdded(indexed address,uint256,uint8)
+        - event: QuoteTokenAdded(indexed address,uint256,uint8,uint256)
           handler: handleQuoteTokenAdded
         - event: QuoteTokenDisabled(indexed address)
           handler: handleQuoteTokenDisabled
+        - event: LaunchFeeSet(indexed address,uint256)
+          handler: handleLaunchFeeSet
+        - event: MarketCapRefSet(indexed address,uint256)
+          handler: handleMarketCapRefSet
+        - event: DecimalsSet(indexed address,uint8)
+          handler: handleDecimalsSet
       file: ./src/sparkLauncher.ts
 
   - kind: ethereum

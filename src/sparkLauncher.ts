@@ -5,6 +5,9 @@ import {
   DexDisabled,
   QuoteTokenAdded,
   QuoteTokenDisabled,
+  LaunchFeeSet,
+  MarketCapRefSet,
+  DecimalsSet,
 } from "../generated/SparkLauncher/SparkLauncher";
 import { SparkLauncher as SparkLauncherContract } from "../generated/SparkLauncher/SparkLauncher";
 import { SparkToken as SparkTokenContract } from "../generated/SparkLauncher/SparkToken";
@@ -29,10 +32,11 @@ function seedWethQuoteToken(launcherAddress: Address): void {
   // The constructor hardcodes launchFee = 0.0005 ETH = 5e14 wei, decimals = 18, isNative = true.
   // Any subsequent change emits QuoteTokenAdded, which handleQuoteTokenAdded will catch.
   const qt = new SparkQuoteToken(wethAddr);
-  qt.launchFee = BigInt.fromString("500000000000000");
-  qt.decimals  = 18;
-  qt.enabled   = true;
-  qt.isNative  = true;
+  qt.launchFee    = BigInt.fromString("500000000000000");
+  qt.decimals     = 18;
+  qt.enabled      = true;
+  qt.isNative     = true;
+  qt.marketCapRef = BigInt.fromI32(0);
   qt.save();
 }
 
@@ -127,9 +131,10 @@ export function handleDexDisabled(event: DexDisabled): void {
 export function handleQuoteTokenAdded(event: QuoteTokenAdded): void {
   let qt = SparkQuoteToken.load(event.params.token);
   if (qt == null) qt = new SparkQuoteToken(event.params.token);
-  qt.launchFee = event.params.fee;
-  qt.decimals  = event.params.decimals;
-  qt.enabled   = true;
+  qt.launchFee    = event.params.fee;
+  qt.decimals     = event.params.decimals;
+  qt.marketCapRef = event.params.marketCapRef;
+  qt.enabled      = true;
 
   // Determine isNative by comparing to the launcher's WETH address.
   const launcher   = SparkLauncherContract.bind(event.address);
@@ -137,6 +142,27 @@ export function handleQuoteTokenAdded(event: QuoteTokenAdded): void {
   qt.isNative = !wethResult.reverted &&
     event.params.token.toHexString() == wethResult.value.toHexString();
 
+  qt.save();
+}
+
+export function handleLaunchFeeSet(event: LaunchFeeSet): void {
+  const qt = SparkQuoteToken.load(event.params.token);
+  if (qt == null) return;
+  qt.launchFee = event.params.fee;
+  qt.save();
+}
+
+export function handleMarketCapRefSet(event: MarketCapRefSet): void {
+  const qt = SparkQuoteToken.load(event.params.token);
+  if (qt == null) return;
+  qt.marketCapRef = event.params.marketCapRef;
+  qt.save();
+}
+
+export function handleDecimalsSet(event: DecimalsSet): void {
+  const qt = SparkQuoteToken.load(event.params.token);
+  if (qt == null) return;
+  qt.decimals = event.params.decimals;
   qt.save();
 }
 
