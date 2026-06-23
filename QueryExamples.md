@@ -3759,6 +3759,7 @@ The Spark system lets anyone launch an ownerless ERC-20 token with a permanent U
     decimals
     enabled
     isNative
+    marketCapRef
   }
 }
 ```
@@ -3774,14 +3775,16 @@ The Spark system lets anyone launch an ownerless ERC-20 token with a permanent U
         "launchFee": "500000000000000",
         "decimals": 18,
         "enabled": true,
-        "isNative": true
+        "isNative": true,
+        "marketCapRef": "69000000000000000000000"
       },
       {
         "id": "0x55d398326f99059ff775485246999027b3197955",
         "launchFee": "1000000000000000000",
         "decimals": 18,
         "enabled": true,
-        "isNative": false
+        "isNative": false,
+        "marketCapRef": "69000000000000000000000"
       }
     ]
   }

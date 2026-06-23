@@ -298,6 +298,8 @@ type SparkQuoteToken @entity {
   enabled: Boolean!
   " True when the fee is paid in native ETH (WETH used as the pool token) "
   isNative: Boolean!
+  " Reference market cap used to price the quote token "
+  marketCapRef: BigInt!
 }
 
 """
