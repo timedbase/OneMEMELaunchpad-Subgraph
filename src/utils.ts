@@ -8,10 +8,13 @@ export const MAX_SPOT_PRICE = BigInt.fromString("1000000000000000000000000000000
 // Singleton ID for the Factory entity — not an actual address, just a stable key.
 export const FACTORY_ID = Bytes.fromUTF8("factory");
 
-// Function selectors — verified against deployed Factory 0xA78df27496825B29CbdCD3778e6bc375a646Ae04.
-export const SELECTOR_CREATE_TOKEN = "6b948c92"; // createToken (STANDARD)
-export const SELECTOR_CREATE_TT    = "917a6333"; // createTT    (TAX)
-export const SELECTOR_CREATE_RFL   = "13b0f58a"; // createRFL   (REFLECTION)
+// Function selectors for the new Launchpad contract.
+// createToken((string,string,uint256,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,string,bytes32))
+export const SELECTOR_CREATE_TOKEN = "9c3ec1f1"; // createToken (STANDARD)
+// createTT((string,string,string,uint256,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,bytes32))
+export const SELECTOR_CREATE_TT    = "49fa14cf"; // createTT    (TAX)
+// createRFL((string,string,string,uint256,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,bytes32))
+export const SELECTOR_CREATE_RFL   = "782ef0a7"; // createRFL   (REFLECTION)
 
 export function getOrCreateFactory(): Factory {
   let factory = Factory.load(FACTORY_ID);
@@ -26,8 +29,6 @@ export function getOrCreateFactory(): Factory {
     factory.totalSells            = BigInt.fromI32(0);
     factory.totalMigrations       = BigInt.fromI32(0);
     factory.creationFee           = BigInt.fromI32(0);
-    factory.defaultVirtualBNB     = BigInt.fromI32(0);
-    factory.defaultMigrationTarget= BigInt.fromI32(0);
     factory.owner                 = Bytes.empty();
     factory.platformFeeBps        = BigInt.fromI32(0);
     factory.charityFeeBps         = BigInt.fromI32(0);

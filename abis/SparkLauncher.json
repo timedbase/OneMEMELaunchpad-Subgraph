@@ -36,9 +36,8 @@
     "name": "QuoteTokenAdded",
     "inputs": [
       { "name": "token",        "type": "address", "indexed": true  },
-      { "name": "fee",          "type": "uint256", "indexed": false },
-      { "name": "decimals",     "type": "uint8",   "indexed": false },
-      { "name": "marketCapRef", "type": "uint256", "indexed": false }
+      { "name": "marketCapRef", "type": "uint256", "indexed": false },
+      { "name": "wethPairFee",  "type": "uint24",  "indexed": false }
     ],
     "anonymous": false
   },
@@ -62,8 +61,7 @@
     "type": "event",
     "name": "LaunchFeeSet",
     "inputs": [
-      { "name": "token", "type": "address", "indexed": true },
-      { "name": "fee",   "type": "uint256", "indexed": false }
+      { "name": "fee", "type": "uint256", "indexed": false }
     ],
     "anonymous": false
   },
@@ -78,10 +76,20 @@
   },
   {
     "type": "event",
-    "name": "DecimalsSet",
+    "name": "ETHRescued",
     "inputs": [
-      { "name": "token",    "type": "address", "indexed": true  },
-      { "name": "decimals", "type": "uint8",   "indexed": false }
+      { "name": "to",     "type": "address", "indexed": true  },
+      { "name": "amount", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ERC20Rescued",
+    "inputs": [
+      { "name": "token",  "type": "address", "indexed": true  },
+      { "name": "to",     "type": "address", "indexed": true  },
+      { "name": "amount", "type": "uint256", "indexed": false }
     ],
     "anonymous": false
   },
@@ -95,6 +103,20 @@
   {
     "type": "function",
     "name": "owner",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "address" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "launchFee",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "launchFeeWallet",
     "inputs": [],
     "outputs": [{ "name": "", "type": "address" }],
     "stateMutability": "view"

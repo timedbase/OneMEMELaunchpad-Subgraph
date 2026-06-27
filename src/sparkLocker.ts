@@ -7,7 +7,6 @@ import {
   CharityWalletSet,
   LauncherSet,
   OwnershipTransferred,
-  EmergencyWithdraw,
 } from "../generated/SparkLocker/SparkLocker";
 import { SparkLocker as SparkLockerContract } from "../generated/SparkLocker/SparkLocker";
 import { SparkLaunchedToken, SparkFeeClaim, SparkLockerState } from "../generated/schema";
@@ -105,9 +104,3 @@ export function handleOwnershipTransferred(event: OwnershipTransferred): void {
   state.save();
 }
 
-export function handleEmergencyWithdraw(event: EmergencyWithdraw): void {
-  const token = SparkLaunchedToken.load(event.params.token);
-  if (token == null) return;
-  token.lpWithdrawn = true;
-  token.save();
-}

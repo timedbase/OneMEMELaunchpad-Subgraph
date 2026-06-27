@@ -12,76 +12,32 @@ schema:
 
 dataSources:
   - kind: ethereum
-    name: LaunchpadFactory
+    name: Launchpad
     network: mainnet
     source:
-      address: "0xe51D92fA3C1C78A9D3B11618fb0bEA319727e2eA"
-      abi: LaunchpadFactory
-      startBlock: 25355264
+      address: "0xc4225f38832d0956aab8318f147173bf2fa18d98"
+      abi: Launchpad
+      startBlock: 25410744 # TODO: replace with actual deployment block
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
       language: wasm/assemblyscript
       entities:
         - Factory
-        - Token
-        - TimelockAction
-      abis:
-        - name: LaunchpadFactory
-          file: ./abis/LaunchpadFactory.json
-        - name: Token
-          file: ./abis/Token.json
-        - name: BondingCurve
-          file: ./abis/BondingCurve.json
-      eventHandlers:
-        - event: TokenCreated(indexed address,indexed address,uint256,uint256,uint256,bool,uint256)
-          handler: handleTokenCreated
-        - event: DefaultParamsUpdated(uint256,uint256,uint256,uint256)
-          handler: handleDefaultParamsUpdated
-        - event: CreationFeeUpdated(uint256,uint256)
-          handler: handleCreationFeeUpdated
-        - event: OwnershipTransferred(indexed address,indexed address)
-          handler: handleOwnershipTransferred
-        - event: OwnershipTransferProposed(indexed address,indexed address)
-          handler: handleOwnershipTransferProposed
-        - event: PlatformFeeUpdated(uint256)
-          handler: handlePlatformFeeUpdated
-        - event: CharityFeeUpdated(uint256)
-          handler: handleCharityFeeUpdated
-        - event: VestingWalletUpdated(indexed address,indexed address)
-          handler: handleVestingWalletUpdated
-        - event: TimelockQueued(indexed bytes32,uint256)
-          handler: handleTimelockQueued
-        - event: TimelockExecuted(indexed bytes32)
-          handler: handleTimelockExecuted
-        - event: TimelockCancelled(indexed bytes32)
-          handler: handleTimelockCancelled
-      file: ./src/launchpadFactory.ts
-
-  - kind: ethereum
-    name: BondingCurve
-    network: mainnet
-    source:
-      address: "0xA78df27496825B29CbdCD3778e6bc375a646Ae04"
-      abi: BondingCurve
-      startBlock: 25162024
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.7
-      language: wasm/assemblyscript
-      entities:
         - Token
         - Trade
         - Migration
-        - Factory
+        - TimelockAction
         - TokenSnapshot
         - TokenPeriodStats
       abis:
-        - name: BondingCurve
-          file: ./abis/BondingCurve.json
+        - name: Launchpad
+          file: ./abis/Launchpad.json
         - name: Token
           file: ./abis/Token.json
       eventHandlers:
+        - event: TokenCreated(indexed address,indexed address,uint256,uint256,uint256,bool,uint256)
+          handler: handleTokenCreated
         - event: TokenRegistered(indexed address,indexed address,uint256,uint256,uint256)
           handler: handleTokenRegistered
         - event: TokenBought(indexed address,indexed address,uint256,uint256,uint256,uint256)
@@ -90,23 +46,37 @@ dataSources:
           handler: handleTokenSold
         - event: TokenMigrated(indexed address,indexed address,uint256,uint256)
           handler: handleTokenMigrated
+        - event: CreationFeeUpdated(uint256,uint256)
+          handler: handleCreationFeeUpdated
         - event: FeesUpdated(uint256,uint256)
           handler: handleFeesUpdated
         - event: FeeRecipientUpdated(address)
           handler: handleFeeRecipientUpdated
         - event: CharityWalletUpdated(address)
           handler: handleCharityWalletUpdated
+        - event: CreatorVaultUpdated(indexed address,indexed address)
+          handler: handleCreatorVaultUpdated
         - event: RouterUpdated(indexed address,indexed address)
           handler: handleRouterUpdated
-      file: ./src/bondingCurve.ts
+        - event: OwnershipTransferred(indexed address,indexed address)
+          handler: handleOwnershipTransferred
+        - event: OwnershipTransferProposed(indexed address,indexed address)
+          handler: handleOwnershipTransferProposed
+        - event: TimelockQueued(indexed bytes32,uint256)
+          handler: handleTimelockQueued
+        - event: TimelockExecuted(indexed bytes32)
+          handler: handleTimelockExecuted
+        - event: TimelockCancelled(indexed bytes32)
+          handler: handleTimelockCancelled
+      file: ./src/launchpad.ts
 
   - kind: ethereum
-    name: VestingWallet
+    name: CreatorVault
     network: mainnet
     source:
-      address: "0xe9F35abA5B0926258bE6EBbc17546B02704fB91C"
-      abi: VestingWallet
-      startBlock: 25162035
+      address: "0x69032d7bd75564b918a1a8e2e1917db1a911f4bd"
+      abi: CreatorVault
+      startBlock: 25410743 # TODO: replace with actual deployment block
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -114,17 +84,23 @@ dataSources:
       entities:
         - VestingSchedule
         - VestingClaim
+        - CreatorVaultPosition
+        - CreatorVaultFeeClaim
       abis:
-        - name: VestingWallet
-          file: ./abis/VestingWallet.json
+        - name: CreatorVault
+          file: ./abis/CreatorVault.json
       eventHandlers:
-        - event: VestingAdded(indexed address,indexed address,uint256)
+        - event: VestingAdded(indexed address,indexed address,uint256,uint256)
           handler: handleVestingAdded
         - event: Claimed(indexed address,indexed address,uint256)
           handler: handleClaimed
         - event: VestingVoided(indexed address,indexed address,uint256)
           handler: handleVestingVoided
-      file: ./src/vestingWallet.ts
+        - event: PositionRegistered(indexed address,indexed uint256,address,address,address)
+          handler: handlePositionRegistered
+        - event: FeesClaimed(indexed address,indexed address,uint256,uint256,uint256,uint256,uint256,uint256)
+          handler: handleFeesClaimed
+      file: ./src/creatorVault.ts
 
   - kind: ethereum
     name: OneCoinLocker
@@ -168,9 +144,9 @@ dataSources:
     name: SparkLauncher
     network: mainnet
     source:
-      address: "0x0c0c21d543003f238cbbD0e6397Ee7eBfa5254d7"
+      address: "0x3f15d4729535e76421f3085b6392488489b33b02" # TODO: replace with new SparkLauncher address
       abi: SparkLauncher
-      startBlock: 25376694
+      startBlock: 25383747 # TODO: replace with actual deployment block
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -179,6 +155,7 @@ dataSources:
         - SparkLaunchedToken
         - SparkDex
         - SparkQuoteToken
+        - SparkLauncherState
       abis:
         - name: SparkLauncher
           file: ./abis/SparkLauncher.json
@@ -191,25 +168,25 @@ dataSources:
           handler: handleDexAdded
         - event: DexDisabled(indexed address)
           handler: handleDexDisabled
-        - event: QuoteTokenAdded(indexed address,uint256,uint8,uint256)
+        - event: QuoteTokenAdded(indexed address,uint256,uint24)
           handler: handleQuoteTokenAdded
         - event: QuoteTokenDisabled(indexed address)
           handler: handleQuoteTokenDisabled
-        - event: LaunchFeeSet(indexed address,uint256)
+        - event: LaunchFeeSet(uint256)
           handler: handleLaunchFeeSet
+        - event: LaunchFeeWalletSet(indexed address)
+          handler: handleLaunchFeeWalletSet
         - event: MarketCapRefSet(indexed address,uint256)
           handler: handleMarketCapRefSet
-        - event: DecimalsSet(indexed address,uint8)
-          handler: handleDecimalsSet
       file: ./src/sparkLauncher.ts
 
   - kind: ethereum
     name: SparkLocker
     network: mainnet
     source:
-      address: "0x0978D78dFBE7D76d06cB6267dEf2857685Aaa507"
+      address: "0xb5CAC5eDf15729e40D54787A6C0Dc880C1D65313" # TODO: replace with new SparkLocker address
       abi: SparkLocker
-      startBlock: 25355061
+      startBlock: 25383702 # TODO: replace with actual deployment block
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -236,8 +213,6 @@ dataSources:
           handler: handleLauncherSet
         - event: OwnershipTransferred(indexed address,indexed address)
           handler: handleOwnershipTransferred
-        - event: EmergencyWithdraw(indexed address,indexed address,uint256)
-          handler: handleEmergencyWithdraw
       file: ./src/sparkLocker.ts
 
 templates:
