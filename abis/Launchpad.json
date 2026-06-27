@@ -1,0 +1,214 @@
+[
+  {
+    "type": "event",
+    "name": "TokenCreated",
+    "inputs": [
+      { "name": "token",           "type": "address", "indexed": true  },
+      { "name": "creator",         "type": "address", "indexed": true  },
+      { "name": "totalSupply",     "type": "uint256", "indexed": false },
+      { "name": "virtualBNB",      "type": "uint256", "indexed": false },
+      { "name": "migrationTarget", "type": "uint256", "indexed": false },
+      { "name": "antibotEnabled",  "type": "bool",    "indexed": false },
+      { "name": "tradingBlock",    "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TokenRegistered",
+    "inputs": [
+      { "name": "token",           "type": "address", "indexed": true  },
+      { "name": "creator",         "type": "address", "indexed": true  },
+      { "name": "totalSupply",     "type": "uint256", "indexed": false },
+      { "name": "virtualBNB",      "type": "uint256", "indexed": false },
+      { "name": "migrationTarget", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TokenBought",
+    "inputs": [
+      { "name": "token",        "type": "address", "indexed": true  },
+      { "name": "buyer",        "type": "address", "indexed": true  },
+      { "name": "bnbIn",        "type": "uint256", "indexed": false },
+      { "name": "tokensOut",    "type": "uint256", "indexed": false },
+      { "name": "tokensToDead", "type": "uint256", "indexed": false },
+      { "name": "raisedBNB",   "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TokenSold",
+    "inputs": [
+      { "name": "token",     "type": "address", "indexed": true  },
+      { "name": "seller",    "type": "address", "indexed": true  },
+      { "name": "tokensIn",  "type": "uint256", "indexed": false },
+      { "name": "bnbOut",    "type": "uint256", "indexed": false },
+      { "name": "raisedBNB", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TokenMigrated",
+    "inputs": [
+      { "name": "token",           "type": "address", "indexed": true  },
+      { "name": "pair",            "type": "address", "indexed": true  },
+      { "name": "liquidityBNB",    "type": "uint256", "indexed": false },
+      { "name": "liquidityTokens", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "EmergencyMigrated",
+    "inputs": [
+      { "name": "token",       "type": "address", "indexed": true  },
+      { "name": "to",          "type": "address", "indexed": true  },
+      { "name": "bnbAmount",   "type": "uint256", "indexed": false },
+      { "name": "tokenAmount", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MigrationFailed",
+    "inputs": [
+      { "name": "token", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CreationFeeUpdated",
+    "inputs": [
+      { "name": "oldFee", "type": "uint256", "indexed": false },
+      { "name": "newFee", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FeesUpdated",
+    "inputs": [
+      { "name": "platformFee", "type": "uint256", "indexed": false },
+      { "name": "charityFee",  "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FeeRecipientUpdated",
+    "inputs": [
+      { "name": "recipient", "type": "address", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CharityWalletUpdated",
+    "inputs": [
+      { "name": "wallet", "type": "address", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CreatorVaultUpdated",
+    "inputs": [
+      { "name": "prev", "type": "address", "indexed": true },
+      { "name": "next", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RouterUpdated",
+    "inputs": [
+      { "name": "oldRouter", "type": "address", "indexed": true },
+      { "name": "newRouter", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      { "name": "prev", "type": "address", "indexed": true },
+      { "name": "next", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferProposed",
+    "inputs": [
+      { "name": "current",  "type": "address", "indexed": true },
+      { "name": "proposed", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TimelockQueued",
+    "inputs": [
+      { "name": "actionId",     "type": "bytes32", "indexed": true  },
+      { "name": "executeAfter", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TimelockExecuted",
+    "inputs": [
+      { "name": "actionId", "type": "bytes32", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TimelockCancelled",
+    "inputs": [
+      { "name": "actionId", "type": "bytes32", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "AllocationBoundsUpdated",
+    "inputs": [
+      { "name": "minCurveBps",     "type": "uint256", "indexed": false },
+      { "name": "minLiquidityBps", "type": "uint256", "indexed": false },
+      { "name": "maxCreatorBps",   "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SupplyBoundsUpdated",
+    "inputs": [
+      { "name": "minSupply", "type": "uint256", "indexed": false },
+      { "name": "maxSupply", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ImplUpdated",
+    "inputs": [
+      { "name": "implType", "type": "string",  "indexed": false },
+      { "name": "prev",     "type": "address", "indexed": true  },
+      { "name": "next",     "type": "address", "indexed": true  }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "function",
+    "name": "getSpotPrice",
+    "inputs": [{ "name": "token_", "type": "address" }],
+    "outputs": [{ "name": "price", "type": "uint256" }],
+    "stateMutability": "view"
+  }
+]

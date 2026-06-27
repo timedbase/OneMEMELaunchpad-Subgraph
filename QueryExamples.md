@@ -15,19 +15,21 @@ BNB amounts are stored in wei — divide by `1e18` to get BNB.
 3. [Trades](#trades)
 4. [Migrations](#migrations)
 5. [Vesting](#vesting)
-6. [Governance — Timelock actions](#governance--timelock-actions)
-7. [Peripheral — BuyBack](#peripheral--buyback)
-8. [Peripheral — Collector](#peripheral--collector)
-9. [Peripheral — Vault](#peripheral--vault)
-10. [Token Snapshots (OHLCV)](#token-snapshots-ohlcv)
-11. [Holders](#holders)
-12. [Trending Tokens](#trending-tokens)
-13. [OneCoinLocker](#onecoinlocker)
-14. [Spark](#spark)
-15. [Spark Trades](#spark-trades)
-16. [Spark Holders](#spark-holders)
-17. [Analytics & combined queries](#analytics--combined-queries)
-18. [Pagination](#pagination)
+6. [Creator Vault Positions](#creator-vault-positions)
+7. [Governance — Timelock actions](#governance--timelock-actions)
+8. [Peripheral — BuyBack](#peripheral--buyback)
+9. [Peripheral — Collector](#peripheral--collector)
+10. [Peripheral — Vault](#peripheral--vault)
+11. [Token Snapshots (OHLCV)](#token-snapshots-ohlcv)
+12. [Holders](#holders)
+13. [Trending Tokens](#trending-tokens)
+14. [OneCoinLocker](#onecoinlocker)
+15. [Spark](#spark)
+16. [Spark Launcher State](#spark-launcher-state)
+17. [Spark Trades](#spark-trades)
+18. [Spark Holders](#spark-holders)
+19. [Analytics & combined queries](#analytics--combined-queries)
+20. [Pagination](#pagination)
 
 ---
 
@@ -49,8 +51,9 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
     totalSells
     totalMigrations
     creationFee
-    defaultVirtualBNB
-    defaultMigrationTarget
+    platformFeeBps
+    charityFeeBps
+    creatorVault
     owner
   }
 }
@@ -72,8 +75,9 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
         "totalSells": "3204",
         "totalMigrations": "11",
         "creationFee": "100000000000000000",
-        "defaultVirtualBNB": "1000000000000000000",
-        "defaultMigrationTarget": "20000000000000000000",
+        "platformFeeBps": "300",
+        "charityFeeBps": "100",
+        "creatorVault": "0x761697743314ce7233b5f826afefda50a13319f2",
         "owner": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4"
       }
     ]
@@ -91,8 +95,9 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
     totalSells
     totalMigrations
     creationFee
-    defaultVirtualBNB
-    defaultMigrationTarget
+    platformFeeBps
+    charityFeeBps
+    creatorVault
     timelockActions(where: { executed: false, cancelled: false }) {
       id
       executeAfter
@@ -114,8 +119,9 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
         "totalSells": "3204",
         "totalMigrations": "11",
         "creationFee": "100000000000000000",
-        "defaultVirtualBNB": "1000000000000000000",
-        "defaultMigrationTarget": "20000000000000000000",
+        "platformFeeBps": "300",
+        "charityFeeBps": "100",
+        "creatorVault": "0x761697743314ce7233b5f826afefda50a13319f2",
         "timelockActions": [
           {
             "id": "0x1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d",
@@ -1250,6 +1256,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     token { id name symbol }
     beneficiary
     amount
+    duration
     claimed
     createdAtTimestamp
     createdAtBlockNumber
@@ -1273,6 +1280,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
         },
         "beneficiary": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
         "amount": "50000000000000000000000000",
+        "duration": "15552000",
         "claimed": "10000000000000000000000000",
         "createdAtTimestamp": "1700086400",
         "createdAtBlockNumber": "38120000",
@@ -1290,6 +1298,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
   vestingSchedules(where: { beneficiary: "0xBENEFICIARY_ADDRESS" }) {
     token { id name symbol tokenType }
     amount
+    duration
     claimed
     voided
     burnedOnVoid
@@ -1313,6 +1322,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
           "tokenType": "STANDARD"
         },
         "amount": "50000000000000000000000000",
+        "duration": "15552000",
         "claimed": "10000000000000000000000000",
         "voided": false,
         "burnedOnVoid": null,
@@ -1331,6 +1341,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
   vestingSchedules(where: { token: "0xTOKEN_ADDRESS" }) {
     beneficiary
     amount
+    duration
     claimed
     voided
     burnedOnVoid
@@ -1348,6 +1359,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
       {
         "beneficiary": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
         "amount": "50000000000000000000000000",
+        "duration": "15552000",
         "claimed": "10000000000000000000000000",
         "voided": false,
         "burnedOnVoid": null,
@@ -1448,6 +1460,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     token { id name symbol }
     beneficiary
     amount
+    duration
     claimed
     burnedOnVoid
     voidedTxHash
@@ -1470,6 +1483,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
         },
         "beneficiary": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
         "amount": "30000000000000000000000000",
+        "duration": "15552000",
         "claimed": "5000000000000000000000000",
         "burnedOnVoid": "25000000000000000000000000",
         "voidedTxHash": "0xvoid1234void1234void1234void1234void1234void1234void1234void1234",
@@ -1494,6 +1508,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     token { id name symbol }
     beneficiary
     amount
+    duration
     claimed
     createdAtTimestamp
   }
@@ -1514,8 +1529,199 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
         },
         "beneficiary": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
         "amount": "50000000000000000000000000",
+        "duration": "15552000",
         "claimed": "10000000000000000000000000",
         "createdAtTimestamp": "1700086400"
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Creator Vault Positions
+
+The `CreatorVaultPosition` entity tracks Uniswap V3 LP positions (NFTs) registered in the CreatorVault contract when a bonding-curve token migrates. `CreatorVaultFeeClaim` records each time swap fees are split between creator, platform, and charity.
+
+### All LP positions — newest first
+
+```graphql
+{
+  creatorVaultPositions(orderBy: registeredAtTimestamp, orderDirection: desc, first: 20) {
+    id
+    tokenId
+    token { id name symbol }
+    feeWallet
+    pool
+    positionManager
+    totalCreator0
+    totalCreator1
+    totalPlatform0
+    totalPlatform1
+    totalCharity0
+    totalCharity1
+    claimCount
+    registeredAtTimestamp
+    registeredAtBlockNumber
+    txHash
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "creatorVaultPositions": [
+      {
+        "id": "0x1122334455667788112233445566778811223344",
+        "tokenId": "88421",
+        "token": {
+          "id": "0x1122334455667788112233445566778811223344",
+          "name": "ShibaRocket",
+          "symbol": "SHRKT"
+        },
+        "feeWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "pool": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
+        "positionManager": "0xc36442b4a4522e871399cd717abdd847ab11fe88",
+        "totalCreator0": "120000000000000000",
+        "totalCreator1": "240000000000000000",
+        "totalPlatform0": "42000000000000000",
+        "totalPlatform1": "84000000000000000",
+        "totalCharity0": "8400000000000000",
+        "totalCharity1": "16800000000000000",
+        "claimCount": "2",
+        "registeredAtTimestamp": "1699950000",
+        "registeredAtBlockNumber": "38100000",
+        "txHash": "0xdead5678dead5678dead5678dead5678dead5678dead5678dead5678dead5678"
+      }
+    ]
+  }
+}
+```
+
+### LP position for a specific token
+
+```graphql
+{
+  creatorVaultPosition(id: "0xTOKEN_ADDRESS") {
+    tokenId
+    feeWallet
+    pool
+    positionManager
+    totalCreator0
+    totalCreator1
+    totalPlatform0
+    totalPlatform1
+    totalCharity0
+    totalCharity1
+    claimCount
+    registeredAtTimestamp
+    feeClaims(orderBy: timestamp, orderDirection: desc, first: 10) {
+      id
+      feeWallet
+      creator0
+      creator1
+      platform0
+      platform1
+      charity0
+      charity1
+      timestamp
+      txHash
+    }
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "creatorVaultPosition": {
+      "tokenId": "88421",
+      "feeWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+      "pool": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
+      "positionManager": "0xc36442b4a4522e871399cd717abdd847ab11fe88",
+      "totalCreator0": "120000000000000000",
+      "totalCreator1": "240000000000000000",
+      "totalPlatform0": "42000000000000000",
+      "totalPlatform1": "84000000000000000",
+      "totalCharity0": "8400000000000000",
+      "totalCharity1": "16800000000000000",
+      "claimCount": "2",
+      "registeredAtTimestamp": "1699950000",
+      "feeClaims": [
+        {
+          "id": "0xfee1111fee1111fee1111fee1111fee1111fee1111fee1111fee1111fee111100",
+          "feeWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+          "creator0": "60000000000000000",
+          "creator1": "120000000000000000",
+          "platform0": "21000000000000000",
+          "platform1": "42000000000000000",
+          "charity0": "4200000000000000",
+          "charity1": "8400000000000000",
+          "timestamp": "1700200000",
+          "txHash": "0xfee1111fee1111fee1111fee1111fee1111fee1111fee1111fee1111fee1111"
+        }
+      ]
+    }
+  }
+}
+```
+
+### All vault fee claims — newest first
+
+```graphql
+{
+  creatorVaultFeeClaims(orderBy: timestamp, orderDirection: desc, first: 50) {
+    id
+    position { id tokenId pool }
+    token { id name symbol }
+    feeWallet
+    creator0
+    creator1
+    platform0
+    platform1
+    charity0
+    charity1
+    timestamp
+    blockNumber
+    txHash
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "creatorVaultFeeClaims": [
+      {
+        "id": "0xfee1111fee1111fee1111fee1111fee1111fee1111fee1111fee1111fee111100",
+        "position": {
+          "id": "0x1122334455667788112233445566778811223344",
+          "tokenId": "88421",
+          "pool": "0xcafe1234cafe1234cafe1234cafe1234cafe1234"
+        },
+        "token": {
+          "id": "0x1122334455667788112233445566778811223344",
+          "name": "ShibaRocket",
+          "symbol": "SHRKT"
+        },
+        "feeWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "creator0": "60000000000000000",
+        "creator1": "120000000000000000",
+        "platform0": "21000000000000000",
+        "platform1": "42000000000000000",
+        "charity0": "4200000000000000",
+        "charity1": "8400000000000000",
+        "timestamp": "1700200000",
+        "blockNumber": "38160000",
+        "txHash": "0xfee1111fee1111fee1111fee1111fee1111fee1111fee1111fee1111fee1111"
       }
     ]
   }
@@ -3755,8 +3961,7 @@ The Spark system lets anyone launch an ownerless ERC-20 token with a permanent U
 {
   sparkQuoteTokens(where: { enabled: true }) {
     id
-    launchFee
-    decimals
+    wethPairFee
     enabled
     isNative
     marketCapRef
@@ -3772,19 +3977,51 @@ The Spark system lets anyone launch an ownerless ERC-20 token with a permanent U
     "sparkQuoteTokens": [
       {
         "id": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-        "launchFee": "500000000000000",
-        "decimals": 18,
+        "wethPairFee": 0,
         "enabled": true,
         "isNative": true,
-        "marketCapRef": "69000000000000000000000"
+        "marketCapRef": "5000000000000000000"
       },
       {
         "id": "0x55d398326f99059ff775485246999027b3197955",
-        "launchFee": "1000000000000000000",
-        "decimals": 18,
+        "wethPairFee": 3000,
         "enabled": true,
         "isNative": false,
-        "marketCapRef": "69000000000000000000000"
+        "marketCapRef": "5000000000000000000"
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Spark Launcher State
+
+The `SparkLauncherState` entity is a singleton (keyed by the SparkLauncher contract address) that tracks the global launch fee and fee wallet, which apply to all quote tokens uniformly.
+
+### Launcher global config
+
+```graphql
+{
+  sparkLauncherStates {
+    id
+    launchFee
+    launchFeeWallet
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "sparkLauncherStates": [
+      {
+        "id": "0xa7305c2bf7669cdd78bc76514a0238cbf2291d70",
+        "launchFee": "500000000000000",
+        "launchFeeWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4"
       }
     ]
   }
@@ -4740,8 +4977,9 @@ Each `SparkTrade` is one Uniswap V3 `Swap` event on a Spark token's pool. `isBuy
 {
   factories {
     creationFee
-    defaultVirtualBNB
-    defaultMigrationTarget
+    platformFeeBps
+    charityFeeBps
+    creatorVault
     owner
     timelockActions(where: { executed: false, cancelled: false }) {
       id
@@ -4761,8 +4999,9 @@ Each `SparkTrade` is one Uniswap V3 `Swap` event on a Spark token's pool. `isBuy
     "factories": [
       {
         "creationFee": "100000000000000000",
-        "defaultVirtualBNB": "1000000000000000000",
-        "defaultMigrationTarget": "20000000000000000000",
+        "platformFeeBps": "300",
+        "charityFeeBps": "100",
+        "creatorVault": "0x761697743314ce7233b5f826afefda50a13319f2",
         "owner": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
         "timelockActions": [
           {

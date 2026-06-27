@@ -6,8 +6,8 @@ import {
   QuoteTokenAdded,
   QuoteTokenDisabled,
   LaunchFeeSet,
+  LaunchFeeWalletSet,
   MarketCapRefSet,
-  DecimalsSet,
 } from "../generated/SparkLauncher/SparkLauncher";
 import { SparkLauncher as SparkLauncherContract } from "../generated/SparkLauncher/SparkLauncher";
 import { SparkToken as SparkTokenContract } from "../generated/SparkLauncher/SparkToken";
@@ -16,11 +16,30 @@ import {
   SparkDex,
   SparkQuoteToken,
   SparkPool,
+  SparkLauncherState,
 } from "../generated/schema";
 import { UniswapV3Pool, SparkToken as SparkTokenTemplate } from "../generated/templates";
 
-// Seed the constructor-set WETH quote token (no QuoteTokenAdded event is emitted for it).
-// Called the first time a DexAdded event is processed (i.e. from the constructor).
+function getOrCreateLauncherState(contractAddr: Address): SparkLauncherState {
+  const id = contractAddr as Bytes;
+  let state = SparkLauncherState.load(id);
+  if (state != null) return state as SparkLauncherState;
+
+  const launcher = SparkLauncherContract.bind(contractAddr);
+
+  state = new SparkLauncherState(id);
+
+  const feeResult    = launcher.try_launchFee();
+  const walletResult = launcher.try_launchFeeWallet();
+
+  state.launchFee       = feeResult.reverted    ? BigInt.fromI32(0) : feeResult.value;
+  state.launchFeeWallet = walletResult.reverted  ? Bytes.empty()    : walletResult.value;
+  state.save();
+  return state as SparkLauncherState;
+}
+
+// The constructor seeds WETH with no QuoteTokenAdded event. Bootstrap it here on the
+// first DexAdded (which IS emitted from the constructor).
 function seedWethQuoteToken(launcherAddress: Address): void {
   const launcher = SparkLauncherContract.bind(launcherAddress);
   const wethResult = launcher.try_weth();
@@ -29,14 +48,11 @@ function seedWethQuoteToken(launcherAddress: Address): void {
   const wethAddr = wethResult.value;
   if (SparkQuoteToken.load(wethAddr) != null) return; // already seeded
 
-  // The constructor hardcodes launchFee = 0.0005 ETH = 5e14 wei, decimals = 18, isNative = true.
-  // Any subsequent change emits QuoteTokenAdded, which handleQuoteTokenAdded will catch.
   const qt = new SparkQuoteToken(wethAddr);
-  qt.launchFee    = BigInt.fromString("500000000000000");
-  qt.decimals     = 18;
+  qt.marketCapRef = BigInt.fromString("5000000000000000000"); // 5e18 — default from constructor
+  qt.wethPairFee  = 0; // unused for WETH itself
   qt.enabled      = true;
   qt.isNative     = true;
-  qt.marketCapRef = BigInt.fromI32(0);
   qt.save();
 }
 
@@ -58,17 +74,15 @@ export function handleTokenLaunched(event: TokenLaunched): void {
   sparkToken.pool       = event.params.pool;
   sparkToken.tokenId    = event.params.tokenId;
 
-  // Derive positionManager from the registered DEX entry (written by handleDexAdded).
   const dex = SparkDex.load(event.params.factory);
   sparkToken.positionManager = dex != null
     ? dex.positionManager
     : Bytes.empty();
 
-  // Determine Uniswap V3 pair ordering: token0 is the lower address.
   const tokenHex     = event.params.token.toHexString();
   const quoteHex     = event.params.quoteToken.toHexString();
   const tokenIsLower = tokenHex < quoteHex;
-  sparkToken.token0  = tokenIsLower ? event.params.token     : event.params.quoteToken;
+  sparkToken.token0  = tokenIsLower ? event.params.token      : event.params.quoteToken;
   sparkToken.token1  = tokenIsLower ? event.params.quoteToken : event.params.token;
 
   sparkToken.totalCreatorFees0  = BigInt.fromI32(0);
@@ -80,25 +94,21 @@ export function handleTokenLaunched(event: TokenLaunched): void {
   sparkToken.claimCount         = BigInt.fromI32(0);
   sparkToken.lpWithdrawn        = false;
 
-  sparkToken.tradeCount        = BigInt.fromI32(0);
-  sparkToken.totalVolumeToken  = BigInt.fromI32(0);
-  sparkToken.totalVolumeQuote  = BigInt.fromI32(0);
+  sparkToken.tradeCount       = BigInt.fromI32(0);
+  sparkToken.totalVolumeToken = BigInt.fromI32(0);
+  sparkToken.totalVolumeQuote = BigInt.fromI32(0);
 
   sparkToken.createdAtTimestamp   = event.block.timestamp;
   sparkToken.createdAtBlockNumber = event.block.number;
   sparkToken.txHash               = event.transaction.hash;
   sparkToken.save();
 
-  // Register pool lookup so the Swap handler can resolve this token.
   const pool = new SparkPool(event.params.pool);
   pool.token         = event.params.token;
   pool.sparkIsToken0 = tokenIsLower;
   pool.save();
 
-  // Start indexing Swap events from this pool.
   UniswapV3Pool.create(event.params.pool);
-
-  // Start indexing Transfer events for holder tracking.
   SparkTokenTemplate.create(event.params.token);
 }
 
@@ -116,9 +126,11 @@ export function handleDexAdded(event: DexAdded): void {
   dex.enabled         = true;
   dex.save();
 
-  // The constructor emits DexAdded but never emits QuoteTokenAdded for the initial WETH
-  // quote token. Seed it here on the very first DexAdded event we ever see.
-  if (isFirst) seedWethQuoteToken(event.address);
+  if (isFirst) {
+    seedWethQuoteToken(event.address);
+    // Also bootstrap the launcher state (set in constructor with no event).
+    getOrCreateLauncherState(event.address);
+  }
 }
 
 export function handleDexDisabled(event: DexDisabled): void {
@@ -131,12 +143,10 @@ export function handleDexDisabled(event: DexDisabled): void {
 export function handleQuoteTokenAdded(event: QuoteTokenAdded): void {
   let qt = SparkQuoteToken.load(event.params.token);
   if (qt == null) qt = new SparkQuoteToken(event.params.token);
-  qt.launchFee    = event.params.fee;
-  qt.decimals     = event.params.decimals;
   qt.marketCapRef = event.params.marketCapRef;
+  qt.wethPairFee  = event.params.wethPairFee;
   qt.enabled      = true;
 
-  // Determine isNative by comparing to the launcher's WETH address.
   const launcher   = SparkLauncherContract.bind(event.address);
   const wethResult = launcher.try_weth();
   qt.isNative = !wethResult.reverted &&
@@ -145,30 +155,28 @@ export function handleQuoteTokenAdded(event: QuoteTokenAdded): void {
   qt.save();
 }
 
-export function handleLaunchFeeSet(event: LaunchFeeSet): void {
+export function handleQuoteTokenDisabled(event: QuoteTokenDisabled): void {
   const qt = SparkQuoteToken.load(event.params.token);
   if (qt == null) return;
-  qt.launchFee = event.params.fee;
+  qt.enabled = false;
   qt.save();
+}
+
+export function handleLaunchFeeSet(event: LaunchFeeSet): void {
+  const state = getOrCreateLauncherState(event.address);
+  state.launchFee = event.params.fee;
+  state.save();
+}
+
+export function handleLaunchFeeWalletSet(event: LaunchFeeWalletSet): void {
+  const state = getOrCreateLauncherState(event.address);
+  state.launchFeeWallet = event.params.wallet;
+  state.save();
 }
 
 export function handleMarketCapRefSet(event: MarketCapRefSet): void {
   const qt = SparkQuoteToken.load(event.params.token);
   if (qt == null) return;
   qt.marketCapRef = event.params.marketCapRef;
-  qt.save();
-}
-
-export function handleDecimalsSet(event: DecimalsSet): void {
-  const qt = SparkQuoteToken.load(event.params.token);
-  if (qt == null) return;
-  qt.decimals = event.params.decimals;
-  qt.save();
-}
-
-export function handleQuoteTokenDisabled(event: QuoteTokenDisabled): void {
-  const qt = SparkQuoteToken.load(event.params.token);
-  if (qt == null) return;
-  qt.enabled = false;
   qt.save();
 }

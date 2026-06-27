@@ -19,14 +19,13 @@ type Factory @entity {
 
   " Current factory settings "
   creationFee: BigInt!
-  defaultVirtualBNB: BigInt!
-  defaultMigrationTarget: BigInt!
   owner: Bytes!
   " Pending owner from two-step ownership transfer; null until proposed "
   pendingOwner: Bytes
   platformFeeBps: BigInt!
   charityFeeBps: BigInt!
-  vestingWallet: Bytes
+  " CreatorVault address (set by CreatorVaultUpdated events) "
+  creatorVault: Bytes
 
   timelockActions: [TimelockAction!]! @derivedFrom(field: "factory")
 }
@@ -107,11 +106,12 @@ type Token @entity {
   twitter: String
   telegram: String
 
-  trades:         [Trade!]!         @derivedFrom(field: "token")
-  migrations:     [Migration!]!     @derivedFrom(field: "token")
-  vestingSchedules: [VestingSchedule!]! @derivedFrom(field: "token")
-  snapshots:      [TokenSnapshot!]! @derivedFrom(field: "token")
-  holders:        [Holder!]!        @derivedFrom(field: "token")
+  trades:                [Trade!]!                  @derivedFrom(field: "token")
+  migrations:            [Migration!]!              @derivedFrom(field: "token")
+  vestingSchedules:      [VestingSchedule!]!        @derivedFrom(field: "token")
+  creatorVaultPositions: [CreatorVaultPosition!]!   @derivedFrom(field: "token")
+  snapshots:             [TokenSnapshot!]!          @derivedFrom(field: "token")
+  holders:               [Holder!]!                 @derivedFrom(field: "token")
 }
 
 """
@@ -168,6 +168,8 @@ type VestingSchedule @entity {
   beneficiary: Bytes!
   amount: BigInt!
   claimed: BigInt!
+  " Vesting duration in seconds (set by new CreatorVault; 0 for legacy VestingWallet schedules) "
+  duration: BigInt!
   voided: Boolean!
   burnedOnVoid: BigInt
   voidedTxHash: Bytes
@@ -177,6 +179,55 @@ type VestingSchedule @entity {
   txHash: Bytes!
 
   claims: [VestingClaim!]! @derivedFrom(field: "schedule")
+}
+
+"""
+A V3 LP position locked in CreatorVault for a StandardToken migration.
+id = token contract address (one position per token).
+"""
+type CreatorVaultPosition @entity {
+  " Token contract address "
+  id: Bytes!
+  token: Token!
+  tokenId: BigInt!
+  feeWallet: Bytes!
+  pool: Bytes!
+  positionManager: Bytes!
+
+  " Cumulative fees distributed across all claimFees calls "
+  totalCreatorFees0: BigInt!
+  totalCreatorFees1: BigInt!
+  totalPlatformFees0: BigInt!
+  totalPlatformFees1: BigInt!
+  totalCharityFees0: BigInt!
+  totalCharityFees1: BigInt!
+  claimCount: BigInt!
+
+  registeredAtTimestamp: BigInt!
+  registeredAtBlockNumber: BigInt!
+  registeredTxHash: Bytes!
+
+  feeClaims: [CreatorVaultFeeClaim!]! @derivedFrom(field: "position")
+}
+
+"""
+A single LP swap-fee claim on CreatorVault (StandardToken migrations).
+"""
+type CreatorVaultFeeClaim @entity {
+  " txHash + logIndex "
+  id: Bytes!
+  position: CreatorVaultPosition!
+  token: Token!
+  feeWallet: Bytes!
+  creator0: BigInt!
+  creator1: BigInt!
+  platform0: BigInt!
+  platform1: BigInt!
+  charity0: BigInt!
+  charity1: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
 }
 
 """
@@ -288,18 +339,30 @@ type SparkDex @entity {
 }
 
 """
-A quote token accepted by SparkLauncher for launch fees.
+Global state for SparkLauncher (singleton per deployed contract).
+"""
+type SparkLauncherState @entity {
+  " Launcher contract address "
+  id: Bytes!
+  " Global launch fee in native ETH/BNB (applies to all quote tokens) "
+  launchFee: BigInt!
+  " Platform wallet that receives the launch fee "
+  launchFeeWallet: Bytes!
+}
+
+"""
+A quote token accepted by SparkLauncher (pool pairing partner + price reference).
 """
 type SparkQuoteToken @entity {
   " Quote token contract address "
   id: Bytes!
-  launchFee: BigInt!
-  decimals: Int!
   enabled: Boolean!
-  " True when the fee is paid in native ETH (WETH used as the pool token) "
+  " True when the quote token is WETH (native BNB wrapper) "
   isNative: Boolean!
-  " Reference market cap used to price the quote token "
+  " Reference market cap (raw units) targeting the desired launch price "
   marketCapRef: BigInt!
+  " Fee tier of the existing WETH/quoteToken pool used for multihop instant-buy routing; 0 for WETH itself "
+  wethPairFee: Int!
 }
 
 """
