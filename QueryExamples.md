@@ -17,6 +17,7 @@ Replace placeholder addresses (`0xTOKEN`, `0xWALLET`, etc.) with real checksumme
 4. [Migrations](#4-migrations)
 5. [Vesting](#5-vesting)
 6. [Creator Vault Positions](#6-creator-vault-positions)
+6b. [Creator Vault Config](#6b-creator-vault-config)
 7. [Governance — Timelock](#7-governance--timelock)
 8. [Token Snapshots (OHLCV)](#8-token-snapshots-ohlcv)
 9. [Trending — Period Stats](#9-trending--period-stats)
@@ -58,6 +59,13 @@ The `Factory` entity is a singleton — there is always exactly one. Its `id` is
     creatorVault
     owner
     pendingOwner
+    minCurveBps
+    minLiquidityBps
+    maxCreatorBps
+    minSupply
+    maxSupply
+    latestImplType
+    latestImpl
   }
 }
 ```
@@ -85,7 +93,14 @@ The `Factory` entity is a singleton — there is always exactly one. Its `id` is
         "router": "0x10ed43c718714eb63d5aa57b78b54704e256024e",
         "creatorVault": "0x761697743314ce7233b5f826afefda50a13319f2",
         "owner": "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
-        "pendingOwner": null
+        "pendingOwner": null,
+        "minCurveBps": "5000",
+        "minLiquidityBps": "2000",
+        "maxCreatorBps": "500",
+        "minSupply": "100000000000000000000000000",
+        "maxSupply": "1000000000000000000000000000",
+        "latestImplType": "STANDARD",
+        "latestImpl": "0xabc1234abc1234abc1234abc1234abc1234abc12"
       }
     ]
   }
@@ -243,6 +258,13 @@ The `Factory` entity is a singleton — there is always exactly one. Its `id` is
     migrationLiquidityTokens
     migratedAtTimestamp
     migratedAtBlockNumber
+    migrationFailed
+    emergencyMigrated
+    emergencyMigrationTo
+    emergencyMigrationBnb
+    emergencyMigrationTokenAmount
+    emergencyMigratedAtTimestamp
+    emergencyMigratedAtBlockNumber
     buysCount
     sellsCount
     totalVolumeBNBBuy
@@ -285,6 +307,13 @@ The `Factory` entity is a singleton — there is always exactly one. Its `id` is
       "migrationLiquidityTokens": null,
       "migratedAtTimestamp": null,
       "migratedAtBlockNumber": null,
+      "migrationFailed": false,
+      "emergencyMigrated": false,
+      "emergencyMigrationTo": null,
+      "emergencyMigrationBnb": null,
+      "emergencyMigrationTokenAmount": null,
+      "emergencyMigratedAtTimestamp": null,
+      "emergencyMigratedAtBlockNumber": null,
       "buysCount": "84",
       "sellsCount": "21",
       "totalVolumeBNBBuy": "8400000000000000000",
@@ -838,6 +867,40 @@ The `Factory` entity is a singleton — there is always exactly one. Its `id` is
 }
 ```
 
+### Tokens where migration failed (reverted, back on curve)
+
+```graphql
+{
+  tokens(where: { migrationFailed: true }) {
+    id
+    name
+    symbol
+    raisedBNB
+    migrationTarget
+    createdAtTimestamp
+  }
+}
+```
+
+### Tokens that were emergency-migrated
+
+Emergency migration fires when an admin forcefully moves a stuck LP position and returns tokens/BNB to a recipient.
+
+```graphql
+{
+  tokens(where: { emergencyMigrated: true }) {
+    id
+    name
+    symbol
+    emergencyMigrationTo
+    emergencyMigrationBnb
+    emergencyMigrationTokenAmount
+    emergencyMigratedAtTimestamp
+    emergencyMigratedAtBlockNumber
+  }
+}
+```
+
 ---
 
 ## 5. Vesting
@@ -1183,6 +1246,50 @@ Creator vesting schedules are created in CreatorVault when a token migrates. One
     timestamp
     blockNumber
     txHash
+  }
+}
+```
+
+---
+
+## 6b. Creator Vault Config
+
+`CreatorVaultState` is a singleton per vault contract address. It tracks the mutable configuration — fee splits, wallets, ownership — updated by admin events.
+
+### Current vault configuration
+
+```graphql
+{
+  creatorVaultStates {
+    id
+    owner
+    launchManager
+    platformWallet
+    charityWallet
+    creatorBps
+    platformBps
+    charityBps
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "creatorVaultStates": [
+      {
+        "id": "0x761697743314ce7233b5f826afefda50a13319f2",
+        "owner": "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+        "launchManager": "0x1234567890abcdef1234567890abcdef12345678",
+        "platformWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "charityWallet": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
+        "creatorBps": "7000",
+        "platformBps": "2000",
+        "charityBps": "1000"
+      }
+    ]
   }
 }
 ```
@@ -1681,6 +1788,7 @@ Holder balances are tracked via ERC-20 `Transfer` events while a token is on the
     totalLocks
     activeLocks
     fee
+    totalFeesCollected
   }
 }
 ```
@@ -1695,7 +1803,8 @@ Holder balances are tracked via ERC-20 `Transfer` events while a token is on the
         "id": "0x6c6e9740753d9f6c1e5d61c8bc0f34e37590f6c5",
         "totalLocks": "84",
         "activeLocks": "71",
-        "fee": "1000000000000000"
+        "fee": "1000000000000000",
+        "totalFeesCollected": "12500000000000000"
       }
     ]
   }
@@ -1858,6 +1967,139 @@ Holder balances are tracked via ERC-20 `Transfer` events while a token is on the
 }
 ```
 
+### Lock activity timeline
+
+`LockActivity` captures every event that touches a lock as a unified, ordered feed. Use this instead of joining separate `withdrawals` and `transfers` queries when you need the full lifecycle.
+
+Action values: `CREATED` | `EDITED` | `EXTENDED` | `DESCRIPTION_CHANGED` | `WITHDRAWN` | `TRANSFERRED` | `RENOUNCED`
+
+```graphql
+{
+  lock(id: "0xLOCKER_ADDR_CONCATTED_LOCKID") {
+    lockId
+    owner
+    token
+    amount
+    activities(orderBy: timestamp, orderDirection: asc) {
+      action
+      timestamp
+      txHash
+      newAmount
+      newEndTime
+      description
+      withdrawnAmount
+      nativeFee
+      from
+      to
+    }
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "lock": {
+      "lockId": "42",
+      "owner": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+      "token": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
+      "amount": "1000000000000000000000000",
+      "activities": [
+        {
+          "action": "CREATED",
+          "timestamp": "1700086400",
+          "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
+          "newAmount": null,
+          "newEndTime": null,
+          "description": null,
+          "withdrawnAmount": null,
+          "nativeFee": null,
+          "from": null,
+          "to": null
+        },
+        {
+          "action": "DESCRIPTION_CHANGED",
+          "timestamp": "1700200000",
+          "txHash": "0xdesc1234desc1234desc1234desc1234desc1234desc1234desc1234desc1234",
+          "newAmount": null,
+          "newEndTime": null,
+          "description": "Team vesting — updated",
+          "withdrawnAmount": null,
+          "nativeFee": null,
+          "from": null,
+          "to": null
+        },
+        {
+          "action": "WITHDRAWN",
+          "timestamp": "1700500000",
+          "txHash": "0xwith1234with1234with1234with1234with1234with1234with1234with1234",
+          "newAmount": null,
+          "newEndTime": null,
+          "description": null,
+          "withdrawnAmount": "200000000000000000000000",
+          "nativeFee": "1000000000000000",
+          "from": null,
+          "to": null
+        },
+        {
+          "action": "TRANSFERRED",
+          "timestamp": "1700600000",
+          "txHash": "0xtran1234tran1234tran1234tran1234tran1234tran1234tran1234tran1234",
+          "newAmount": null,
+          "newEndTime": null,
+          "description": null,
+          "withdrawnAmount": null,
+          "nativeFee": null,
+          "from": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+          "to": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab"
+        }
+      ]
+    }
+  }
+}
+```
+
+### All lock activities across all locks — newest first
+
+```graphql
+{
+  lockActivities(orderBy: timestamp, orderDirection: desc, first: 50) {
+    action
+    timestamp
+    txHash
+    lock { lockId token owner }
+    withdrawnAmount
+    nativeFee
+    from
+    to
+    newEndTime
+  }
+}
+```
+
+### Activity for a specific token's locks
+
+```graphql
+{
+  lockActivities(
+    where: { lock_: { token: "0xTOKEN" } }
+    orderBy: timestamp
+    orderDirection: asc
+  ) {
+    action
+    timestamp
+    txHash
+    lock { lockId }
+    withdrawnAmount
+    newEndTime
+    from
+    to
+  }
+}
+```
+
 **Example response:**
 
 ```json
@@ -1922,6 +2164,8 @@ Holder balances are tracked via ERC-20 `Transfer` events while a token is on the
     id
     launchFee
     launchFeeWallet
+    totalETHRescued
+    totalERC20Rescued
   }
 }
 ```
@@ -1935,7 +2179,9 @@ Holder balances are tracked via ERC-20 `Transfer` events while a token is on the
       {
         "id": "0xa7305c2bf7669cdd78bc76514a0238cbf2291d70",
         "launchFee": "100000000000000000",
-        "launchFeeWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4"
+        "launchFeeWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "totalETHRescued": "0",
+        "totalERC20Rescued": "0"
       }
     ]
   }
