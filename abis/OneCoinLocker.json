@@ -87,5 +87,14 @@
       { "name": "to",     "type": "address", "indexed": true  },
       { "name": "amount", "type": "uint256", "indexed": false }
     ]
+  },
+  {
+    "type": "event",
+    "name": "TwapUpdated",
+    "anonymous": false,
+    "inputs": [
+      { "name": "price0Avg", "type": "uint256", "indexed": false },
+      { "name": "price1Avg", "type": "uint256", "indexed": false }
+    ]
   }
 ]

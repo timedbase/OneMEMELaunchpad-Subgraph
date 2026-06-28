@@ -5,8 +5,22 @@ import {
   VestingVoided,
   PositionRegistered,
   FeesClaimed,
+  PlatformWalletSet,
+  CharityWalletSet,
+  FeeBpsUpdated,
+  OwnershipTransferred,
+  LaunchManagerUpdated,
 } from "../generated/CreatorVault/CreatorVault";
-import { VestingSchedule, VestingClaim, CreatorVaultPosition, CreatorVaultFeeClaim } from "../generated/schema";
+import { VestingSchedule, VestingClaim, CreatorVaultPosition, CreatorVaultFeeClaim, CreatorVaultState } from "../generated/schema";
+
+function getOrCreateVaultState(address: Bytes): CreatorVaultState {
+  let state = CreatorVaultState.load(address);
+  if (state == null) {
+    state = new CreatorVaultState(address);
+    state.save();
+  }
+  return state as CreatorVaultState;
+}
 
 export function handleVestingAdded(event: VestingAdded): void {
   const id = event.params.token.concat(event.params.beneficiary);
@@ -116,4 +130,36 @@ export function handleFeesClaimed(event: FeesClaimed): void {
   pos.totalCharityFees1  = pos.totalCharityFees1.plus(event.params.charity1);
   pos.claimCount         = pos.claimCount.plus(BigInt.fromI32(1));
   pos.save();
+}
+
+export function handlePlatformWalletSet(event: PlatformWalletSet): void {
+  const state = getOrCreateVaultState(event.address);
+  state.platformWallet = event.params.wallet;
+  state.save();
+}
+
+export function handleCharityWalletSet(event: CharityWalletSet): void {
+  const state = getOrCreateVaultState(event.address);
+  state.charityWallet = event.params.wallet;
+  state.save();
+}
+
+export function handleFeeBpsUpdated(event: FeeBpsUpdated): void {
+  const state = getOrCreateVaultState(event.address);
+  state.creatorBps  = event.params.creatorBps;
+  state.platformBps = event.params.platformBps;
+  state.charityBps  = event.params.charityBps;
+  state.save();
+}
+
+export function handleOwnershipTransferred(event: OwnershipTransferred): void {
+  const state = getOrCreateVaultState(event.address);
+  state.owner = event.params.next;
+  state.save();
+}
+
+export function handleLaunchManagerUpdated(event: LaunchManagerUpdated): void {
+  const state = getOrCreateVaultState(event.address);
+  state.launchManager = event.params.next;
+  state.save();
 }

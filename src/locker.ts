@@ -8,16 +8,28 @@ import {
   LockTransferred,
   LockRenounced,
   FeeUpdated,
+  FeesCollected,
 } from "../generated/OneCoinLocker/OneCoinLocker";
-import { Locker, Lock, LockWithdrawal, LockTransfer } from "../generated/schema";
+import { Locker, Lock, LockWithdrawal, LockTransfer, LockActivity } from "../generated/schema";
+
+function activity(txHash: Bytes, logIndex: i32, lockId: Bytes, action: string, timestamp: BigInt, blockNumber: BigInt): LockActivity {
+  const a = new LockActivity(txHash.concatI32(logIndex));
+  a.lock        = lockId;
+  a.action      = action;
+  a.timestamp   = timestamp;
+  a.blockNumber = blockNumber;
+  a.txHash      = txHash;
+  return a;
+}
 
 function getOrCreateLocker(address: Bytes): Locker {
   let locker = Locker.load(address);
   if (locker == null) {
     locker = new Locker(address);
-    locker.totalLocks  = BigInt.fromI32(0);
-    locker.activeLocks = BigInt.fromI32(0);
-    locker.fee         = BigInt.fromI32(0);
+    locker.totalLocks         = BigInt.fromI32(0);
+    locker.activeLocks        = BigInt.fromI32(0);
+    locker.fee                = BigInt.fromI32(0);
+    locker.totalFeesCollected = BigInt.fromI32(0);
     locker.save();
   }
   return locker as Locker;
@@ -53,6 +65,8 @@ export function handleLockCreated(event: LockCreated): void {
   locker.totalLocks  = locker.totalLocks.plus(BigInt.fromI32(1));
   locker.activeLocks = locker.activeLocks.plus(BigInt.fromI32(1));
   locker.save();
+
+  activity(event.transaction.hash, event.logIndex.toI32(), id, "CREATED", event.block.timestamp, event.block.number).save();
 }
 
 export function handleLockEdited(event: LockEdited): void {
@@ -63,6 +77,11 @@ export function handleLockEdited(event: LockEdited): void {
   lock.amount  = event.params.newAmount;
   lock.endTime = event.params.newEndTime;
   lock.save();
+
+  const a = activity(event.transaction.hash, event.logIndex.toI32(), id, "EDITED", event.block.timestamp, event.block.number);
+  a.newAmount  = event.params.newAmount;
+  a.newEndTime = event.params.newEndTime;
+  a.save();
 }
 
 export function handleLockDescriptionChanged(event: LockDescriptionChanged): void {
@@ -72,6 +91,10 @@ export function handleLockDescriptionChanged(event: LockDescriptionChanged): voi
 
   lock.description = event.params.description;
   lock.save();
+
+  const a = activity(event.transaction.hash, event.logIndex.toI32(), id, "DESCRIPTION_CHANGED", event.block.timestamp, event.block.number);
+  a.description = event.params.description;
+  a.save();
 }
 
 export function handleWithdrawn(event: Withdrawn): void {
@@ -93,6 +116,11 @@ export function handleWithdrawn(event: Withdrawn): void {
   withdrawal.txHash    = event.transaction.hash;
   withdrawal.save();
 
+  const a = activity(event.transaction.hash, event.logIndex.toI32(), id, "WITHDRAWN", event.block.timestamp, event.block.number);
+  a.withdrawnAmount = event.params.amount;
+  a.nativeFee       = event.params.nativeFee;
+  a.save();
+
   if (lock.withdrawn >= lock.amount) {
     const locker = getOrCreateLocker(event.address);
     locker.activeLocks = locker.activeLocks.minus(BigInt.fromI32(1));
@@ -107,6 +135,10 @@ export function handleLockExtended(event: LockExtended): void {
 
   lock.endTime = event.params.newEndTime;
   lock.save();
+
+  const a = activity(event.transaction.hash, event.logIndex.toI32(), id, "EXTENDED", event.block.timestamp, event.block.number);
+  a.newEndTime = event.params.newEndTime;
+  a.save();
 }
 
 export function handleLockTransferred(event: LockTransferred): void {
@@ -126,6 +158,11 @@ export function handleLockTransferred(event: LockTransferred): void {
   transfer.blockNumber = event.block.number;
   transfer.txHash      = event.transaction.hash;
   transfer.save();
+
+  const a = activity(event.transaction.hash, event.logIndex.toI32(), id, "TRANSFERRED", event.block.timestamp, event.block.number);
+  a.from = event.params.from;
+  a.to   = event.params.to;
+  a.save();
 }
 
 export function handleLockRenounced(event: LockRenounced): void {
@@ -137,6 +174,8 @@ export function handleLockRenounced(event: LockRenounced): void {
   lock.renounced = true;
   lock.save();
 
+  activity(event.transaction.hash, event.logIndex.toI32(), id, "RENOUNCED", event.block.timestamp, event.block.number).save();
+
   const locker = getOrCreateLocker(event.address);
   locker.activeLocks = locker.activeLocks.minus(BigInt.fromI32(1));
   locker.save();
@@ -145,5 +184,11 @@ export function handleLockRenounced(event: LockRenounced): void {
 export function handleFeeUpdated(event: FeeUpdated): void {
   const locker = getOrCreateLocker(event.address);
   locker.fee = event.params.newFee;
+  locker.save();
+}
+
+export function handleFeesCollected(event: FeesCollected): void {
+  const locker = getOrCreateLocker(event.address);
+  locker.totalFeesCollected = locker.totalFeesCollected.plus(event.params.amount);
   locker.save();
 }

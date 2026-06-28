@@ -8,6 +8,11 @@ import {
   TokenBought,
   TokenSold,
   TokenMigrated,
+  EmergencyMigrated,
+  MigrationFailed,
+  AllocationBoundsUpdated,
+  SupplyBoundsUpdated,
+  ImplUpdated,
   CreationFeeUpdated,
   FeesUpdated,
   FeeRecipientUpdated,
@@ -213,6 +218,8 @@ export function handleTokenRegistered(event: TokenRegistered): void {
     token.tradingBlock       = ZERO;
     token.raisedBNB          = ZERO;
     token.migrated           = false;
+    token.migrationFailed        = false;
+    token.emergencyMigrated      = false;
     token.buysCount          = ZERO;
     token.sellsCount         = ZERO;
     token.totalVolumeBNBBuy  = ZERO;
@@ -284,17 +291,19 @@ export function handleTokenCreated(event: TokenCreated): void {
   token.tradingBlock    = event.params.tradingBlock;
 
   if (isNew) {
-    token.raisedBNB          = ZERO;
-    token.migrated           = false;
-    token.buysCount          = ZERO;
-    token.sellsCount         = ZERO;
-    token.totalVolumeBNBBuy  = ZERO;
-    token.totalVolumeBNBSell = ZERO;
-    token.bcTokensPool       = ZERO;
-    token.lastKnownPrice     = ZERO;
-    token.createdAtTimestamp   = event.block.timestamp;
-    token.createdAtBlockNumber = event.block.number;
-    token.txHash = event.transaction.hash;
+    token.raisedBNB              = ZERO;
+    token.migrated               = false;
+    token.migrationFailed        = false;
+    token.emergencyMigrated      = false;
+    token.buysCount              = ZERO;
+    token.sellsCount             = ZERO;
+    token.totalVolumeBNBBuy      = ZERO;
+    token.totalVolumeBNBSell     = ZERO;
+    token.bcTokensPool           = ZERO;
+    token.lastKnownPrice         = ZERO;
+    token.createdAtTimestamp     = event.block.timestamp;
+    token.createdAtBlockNumber   = event.block.number;
+    token.txHash                 = event.transaction.hash;
   }
 
   // Fetch ERC-20 metadata if not already populated.
@@ -537,5 +546,46 @@ export function handleCharityWalletUpdated(event: CharityWalletUpdated): void {
 export function handleRouterUpdated(event: RouterUpdated): void {
   const factory = getOrCreateFactory();
   factory.router = event.params.newRouter;
+  factory.save();
+}
+
+export function handleEmergencyMigrated(event: EmergencyMigrated): void {
+  const token = Token.load(event.params.token);
+  if (token == null) return;
+  token.emergencyMigrated             = true;
+  token.emergencyMigrationTo          = event.params.to;
+  token.emergencyMigrationBnb         = event.params.bnbAmount;
+  token.emergencyMigrationTokenAmount = event.params.tokenAmount;
+  token.emergencyMigratedAtTimestamp  = event.block.timestamp;
+  token.emergencyMigratedAtBlockNumber = event.block.number;
+  token.save();
+}
+
+export function handleMigrationFailed(event: MigrationFailed): void {
+  const token = Token.load(event.params.token);
+  if (token == null) return;
+  token.migrationFailed = true;
+  token.save();
+}
+
+export function handleAllocationBoundsUpdated(event: AllocationBoundsUpdated): void {
+  const factory = getOrCreateFactory();
+  factory.minCurveBps     = event.params.minCurveBps;
+  factory.minLiquidityBps = event.params.minLiquidityBps;
+  factory.maxCreatorBps   = event.params.maxCreatorBps;
+  factory.save();
+}
+
+export function handleSupplyBoundsUpdated(event: SupplyBoundsUpdated): void {
+  const factory = getOrCreateFactory();
+  factory.minSupply = event.params.minSupply;
+  factory.maxSupply = event.params.maxSupply;
+  factory.save();
+}
+
+export function handleImplUpdated(event: ImplUpdated): void {
+  const factory = getOrCreateFactory();
+  factory.latestImplType = event.params.implType;
+  factory.latestImpl     = event.params.next;
   factory.save();
 }

@@ -68,6 +68,16 @@ dataSources:
           handler: handleTimelockExecuted
         - event: TimelockCancelled(indexed bytes32)
           handler: handleTimelockCancelled
+        - event: EmergencyMigrated(indexed address,indexed address,uint256,uint256)
+          handler: handleEmergencyMigrated
+        - event: MigrationFailed(indexed address)
+          handler: handleMigrationFailed
+        - event: AllocationBoundsUpdated(uint256,uint256,uint256)
+          handler: handleAllocationBoundsUpdated
+        - event: SupplyBoundsUpdated(uint256,uint256)
+          handler: handleSupplyBoundsUpdated
+        - event: ImplUpdated(string,indexed address,indexed address)
+          handler: handleImplUpdated
       file: ./src/launchpad.ts
 
   - kind: ethereum
@@ -86,6 +96,7 @@ dataSources:
         - VestingClaim
         - CreatorVaultPosition
         - CreatorVaultFeeClaim
+        - CreatorVaultState
       abis:
         - name: CreatorVault
           file: ./abis/CreatorVault.json
@@ -100,6 +111,16 @@ dataSources:
           handler: handlePositionRegistered
         - event: FeesClaimed(indexed address,indexed address,uint256,uint256,uint256,uint256,uint256,uint256)
           handler: handleFeesClaimed
+        - event: PlatformWalletSet(indexed address)
+          handler: handlePlatformWalletSet
+        - event: CharityWalletSet(indexed address)
+          handler: handleCharityWalletSet
+        - event: FeeBpsUpdated(uint256,uint256,uint256)
+          handler: handleFeeBpsUpdated
+        - event: OwnershipTransferred(indexed address,indexed address)
+          handler: handleOwnershipTransferred
+        - event: LaunchManagerUpdated(indexed address,indexed address)
+          handler: handleLaunchManagerUpdated
       file: ./src/creatorVault.ts
 
   - kind: ethereum
@@ -118,6 +139,7 @@ dataSources:
         - Lock
         - LockWithdrawal
         - LockTransfer
+        - LockActivity
       abis:
         - name: OneCoinLocker
           file: ./abis/OneCoinLocker.json
@@ -138,6 +160,8 @@ dataSources:
           handler: handleLockRenounced
         - event: FeeUpdated(uint256)
           handler: handleFeeUpdated
+        - event: FeesCollected(indexed address,uint256)
+          handler: handleFeesCollected
       file: ./src/locker.ts
 
   - kind: ethereum
@@ -178,6 +202,10 @@ dataSources:
           handler: handleLaunchFeeWalletSet
         - event: MarketCapRefSet(indexed address,uint256)
           handler: handleMarketCapRefSet
+        - event: ETHRescued(indexed address,uint256)
+          handler: handleETHRescued
+        - event: ERC20Rescued(indexed address,indexed address,uint256)
+          handler: handleERC20Rescued
       file: ./src/sparkLauncher.ts
 
   - kind: ethereum

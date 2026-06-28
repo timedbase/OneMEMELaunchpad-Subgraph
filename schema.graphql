@@ -33,6 +33,17 @@ type Factory @entity {
   " CreatorVault address (set by CreatorVaultUpdated events) "
   creatorVault: Bytes
 
+  " Allocation bounds — updated via AllocationBoundsUpdated "
+  minCurveBps: BigInt
+  minLiquidityBps: BigInt
+  maxCreatorBps: BigInt
+  " Token supply bounds — updated via SupplyBoundsUpdated "
+  minSupply: BigInt
+  maxSupply: BigInt
+  " Latest token implementation — updated via ImplUpdated "
+  latestImplType: String
+  latestImpl: Bytes
+
   timelockActions: [TimelockAction!]! @derivedFrom(field: "factory")
 }
 
@@ -87,6 +98,16 @@ type Token @entity {
   migrationLiquidityTokens: BigInt
   migratedAtTimestamp: BigInt
   migratedAtBlockNumber: BigInt
+
+  " Set if migration tx reverted (tokens returned to the bonding curve) "
+  migrationFailed: Boolean!
+  " Set when admin calls emergencyMigrate() — LP forcefully moved and tokens returned "
+  emergencyMigrated: Boolean!
+  emergencyMigrationTo: Bytes
+  emergencyMigrationBnb: BigInt
+  emergencyMigrationTokenAmount: BigInt
+  emergencyMigratedAtTimestamp: BigInt
+  emergencyMigratedAtBlockNumber: BigInt
 
   " Aggregate trade stats "
   buysCount: BigInt!
@@ -250,6 +271,21 @@ type VestingClaim @entity {
 }
 
 """
+Mutable configuration state of the CreatorVault contract (singleton per vault).
+"""
+type CreatorVaultState @entity {
+  " CreatorVault contract address "
+  id: Bytes!
+  owner: Bytes
+  launchManager: Bytes
+  platformWallet: Bytes
+  charityWallet: Bytes
+  creatorBps: BigInt
+  platformBps: BigInt
+  charityBps: BigInt
+}
+
+"""
 Time-bucketed stats per token — used for trending and leaderboards across five windows.
 period: 5m | 45m | 1h | 1d | 7d. One entity per (token, period, bucket).
 id = tokenAddress + Bytes.fromUTF8(period) + concatI32(bucketId).
@@ -354,6 +390,10 @@ type SparkLauncherState @entity {
   launchFee: BigInt!
   " Platform wallet that receives the launch fee "
   launchFeeWallet: Bytes!
+  " Cumulative native ETH rescued by admin via rescueETH() "
+  totalETHRescued: BigInt!
+  " Cumulative number of ERC-20 rescue calls by admin "
+  totalERC20Rescued: BigInt!
 }
 
 """
@@ -505,6 +545,8 @@ type Locker @entity {
   activeLocks: BigInt!
   " Current static fallback fee (wei) — updated via FeeUpdated "
   fee: BigInt!
+  " Cumulative native fees swept by the owner via collectFees() "
+  totalFeesCollected: BigInt!
   locks: [Lock!]! @derivedFrom(field: "locker")
 }
 
@@ -542,6 +584,7 @@ type Lock @entity {
 
   withdrawals: [LockWithdrawal!]! @derivedFrom(field: "lock")
   transfers:   [LockTransfer!]!   @derivedFrom(field: "lock")
+  activities:  [LockActivity!]!   @derivedFrom(field: "lock")
 }
 
 """
@@ -571,4 +614,34 @@ type LockTransfer @entity {
   timestamp: BigInt!
   blockNumber: BigInt!
   txHash: Bytes!
+}
+
+"""
+Unified activity log for a Lock — one entry per event regardless of type.
+Enables a single query to reconstruct the full lifecycle of any lock.
+"""
+type LockActivity @entity {
+  " txHash + logIndex "
+  id: Bytes!
+  lock: Lock!
+  " CREATED | EDITED | EXTENDED | DESCRIPTION_CHANGED | WITHDRAWN | TRANSFERRED | RENOUNCED "
+  action: String!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+
+  " EDITED: new total amount after edit "
+  newAmount: BigInt
+  " EDITED | EXTENDED: new unlock timestamp "
+  newEndTime: BigInt
+  " DESCRIPTION_CHANGED: updated description text "
+  description: String
+  " WITHDRAWN: tokens removed in this withdrawal "
+  withdrawnAmount: BigInt
+  " WITHDRAWN: native fee paid "
+  nativeFee: BigInt
+  " TRANSFERRED: previous owner "
+  from: Bytes
+  " TRANSFERRED: new owner "
+  to: Bytes
 }

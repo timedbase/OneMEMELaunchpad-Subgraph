@@ -8,6 +8,8 @@ import {
   LaunchFeeSet,
   LaunchFeeWalletSet,
   MarketCapRefSet,
+  ETHRescued,
+  ERC20Rescued,
 } from "../generated/SparkLauncher/SparkLauncher";
 import { SparkLauncher as SparkLauncherContract } from "../generated/SparkLauncher/SparkLauncher";
 import { SparkToken as SparkTokenContract } from "../generated/SparkLauncher/SparkToken";
@@ -32,8 +34,10 @@ function getOrCreateLauncherState(contractAddr: Address): SparkLauncherState {
   const feeResult    = launcher.try_launchFee();
   const walletResult = launcher.try_launchFeeWallet();
 
-  state.launchFee       = feeResult.reverted    ? BigInt.fromI32(0) : feeResult.value;
-  state.launchFeeWallet = walletResult.reverted  ? Bytes.empty()    : walletResult.value;
+  state.launchFee         = feeResult.reverted   ? BigInt.fromI32(0) : feeResult.value;
+  state.launchFeeWallet   = walletResult.reverted ? Bytes.empty()    : walletResult.value;
+  state.totalETHRescued   = BigInt.fromI32(0);
+  state.totalERC20Rescued = BigInt.fromI32(0);
   state.save();
   return state as SparkLauncherState;
 }
@@ -179,4 +183,16 @@ export function handleMarketCapRefSet(event: MarketCapRefSet): void {
   if (qt == null) return;
   qt.marketCapRef = event.params.marketCapRef;
   qt.save();
+}
+
+export function handleETHRescued(event: ETHRescued): void {
+  const state = getOrCreateLauncherState(event.address);
+  state.totalETHRescued = state.totalETHRescued.plus(event.params.amount);
+  state.save();
+}
+
+export function handleERC20Rescued(event: ERC20Rescued): void {
+  const state = getOrCreateLauncherState(event.address);
+  state.totalERC20Rescued = state.totalERC20Rescued.plus(BigInt.fromI32(1));
+  state.save();
 }

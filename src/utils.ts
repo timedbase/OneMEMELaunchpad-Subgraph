@@ -35,6 +35,13 @@ export function getOrCreateFactory(): Factory {
     factory.feeRecipient          = null;
     factory.charityWallet         = null;
     factory.router                = null;
+    factory.minCurveBps           = null;
+    factory.minLiquidityBps       = null;
+    factory.maxCreatorBps         = null;
+    factory.minSupply             = null;
+    factory.maxSupply             = null;
+    factory.latestImplType        = null;
+    factory.latestImpl            = null;
     factory.save();
   }
   return factory as Factory;
