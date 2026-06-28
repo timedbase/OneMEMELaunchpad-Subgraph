@@ -1,43 +1,42 @@
 # Query Examples
 
-GraphQL query reference for the OneMEME Launchpad subgraph.  
-All fields are verified against [`schema.graphql`](schema.graphql).  
-Replace placeholder addresses (`0xTOKEN_ADDRESS`, etc.) with real checksummed hex.
+GraphQL reference for the OneMEME Launchpad subgraph.  
+All fields match [`schema.graphql`](schema.graphql).  
+Replace placeholder addresses (`0xTOKEN`, `0xWALLET`, etc.) with real checksummed hex.
 
-BNB amounts are stored in wei — divide by `1e18` to get BNB.
-
----
-
-## Table of contents
-
-1. [Factory](#factory)
-2. [Tokens](#tokens)
-3. [Trades](#trades)
-4. [Migrations](#migrations)
-5. [Vesting](#vesting)
-6. [Creator Vault Positions](#creator-vault-positions)
-7. [Governance — Timelock actions](#governance--timelock-actions)
-8. [Peripheral — BuyBack](#peripheral--buyback)
-9. [Peripheral — Collector](#peripheral--collector)
-10. [Peripheral — Vault](#peripheral--vault)
-11. [Token Snapshots (OHLCV)](#token-snapshots-ohlcv)
-12. [Holders](#holders)
-13. [Trending Tokens](#trending-tokens)
-14. [OneCoinLocker](#onecoinlocker)
-15. [Spark](#spark)
-16. [Spark Launcher State](#spark-launcher-state)
-17. [Spark Trades](#spark-trades)
-18. [Spark Holders](#spark-holders)
-19. [Analytics & combined queries](#analytics--combined-queries)
-20. [Pagination](#pagination)
+**Units:** BNB and token amounts are stored in **wei** — divide by `1e18` to get human-readable values.  
+**Prices** (`openPrice`, `closePrice`, etc.) are spot prices scaled ×1e18: `(virtualBNB + raisedBNB) × 1e18 / bcTokensPool`.
 
 ---
 
-## Factory
+## Table of Contents
 
-The `Factory` entity is a singleton. Query it as a list and take the first result, or by its fixed `id`.
+1. [Factory](#1-factory)
+2. [Tokens](#2-tokens)
+3. [Trades](#3-trades)
+4. [Migrations](#4-migrations)
+5. [Vesting](#5-vesting)
+6. [Creator Vault Positions](#6-creator-vault-positions)
+7. [Governance — Timelock](#7-governance--timelock)
+8. [Token Snapshots (OHLCV)](#8-token-snapshots-ohlcv)
+9. [Trending — Period Stats](#9-trending--period-stats)
+10. [Holders](#10-holders)
+11. [OneCoinLocker](#11-onecoinlocker)
+12. [Spark Launcher](#12-spark-launcher)
+13. [Spark Tokens](#13-spark-tokens)
+14. [Spark Trades](#14-spark-trades)
+15. [Spark Fee Claims](#15-spark-fee-claims)
+16. [Spark Holders](#16-spark-holders)
+17. [Pagination](#17-pagination)
+18. [Launchpad Charts](#18-launchpad-charts)
 
-### Global stats
+---
+
+## 1. Factory
+
+The `Factory` entity is a singleton — there is always exactly one. Its `id` is the fixed string `"factory"` encoded as bytes.
+
+### Global stats and config
 
 ```graphql
 {
@@ -53,8 +52,12 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
     creationFee
     platformFeeBps
     charityFeeBps
+    feeRecipient
+    charityWallet
+    router
     creatorVault
     owner
+    pendingOwner
   }
 }
 ```
@@ -77,15 +80,19 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
         "creationFee": "100000000000000000",
         "platformFeeBps": "300",
         "charityFeeBps": "100",
+        "feeRecipient": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "charityWallet": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
+        "router": "0x10ed43c718714eb63d5aa57b78b54704e256024e",
         "creatorVault": "0x761697743314ce7233b5f826afefda50a13319f2",
-        "owner": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4"
+        "owner": "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+        "pendingOwner": null
       }
     ]
   }
 }
 ```
 
-### Factory with pending governance actions
+### Factory with pending timelock actions
 
 ```graphql
 {
@@ -98,10 +105,17 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
     platformFeeBps
     charityFeeBps
     creatorVault
-    timelockActions(where: { executed: false, cancelled: false }) {
+    owner
+    pendingOwner
+    timelockActions(
+      where: { executed: false, cancelled: false }
+      orderBy: executeAfter
+      orderDirection: asc
+    ) {
       id
       executeAfter
       queuedAtTimestamp
+      queuedTxHash
     }
   }
 }
@@ -122,11 +136,14 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
         "platformFeeBps": "300",
         "charityFeeBps": "100",
         "creatorVault": "0x761697743314ce7233b5f826afefda50a13319f2",
+        "owner": "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+        "pendingOwner": null,
         "timelockActions": [
           {
             "id": "0x1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d",
             "executeAfter": "1700172800",
-            "queuedAtTimestamp": "1700086400"
+            "queuedAtTimestamp": "1700086400",
+            "queuedTxHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
           }
         ]
       }
@@ -137,7 +154,7 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
 
 ---
 
-## Tokens
+## 2. Tokens
 
 ### All tokens — newest first
 
@@ -155,6 +172,7 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
     migrated
     buysCount
     sellsCount
+    lastKnownPrice
     createdAtTimestamp
   }
 }
@@ -178,6 +196,7 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
         "migrated": false,
         "buysCount": "84",
         "sellsCount": "21",
+        "lastKnownPrice": "1086000000000000",
         "createdAtTimestamp": "1700086400"
       },
       {
@@ -192,6 +211,7 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
         "migrated": false,
         "buysCount": "33",
         "sellsCount": "7",
+        "lastKnownPrice": "210000000000000",
         "createdAtTimestamp": "1700000000"
       }
     ]
@@ -203,7 +223,7 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
 
 ```graphql
 {
-  token(id: "0xTOKEN_ADDRESS") {
+  token(id: "0xTOKEN") {
     id
     name
     symbol
@@ -215,6 +235,8 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
     antibotEnabled
     tradingBlock
     raisedBNB
+    bcTokensPool
+    lastKnownPrice
     migrated
     pair
     migrationBNB
@@ -225,15 +247,15 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
     sellsCount
     totalVolumeBNBBuy
     totalVolumeBNBSell
-    createdAtTimestamp
-    createdAtBlockNumber
-    txHash
     metaUri
     description
     image
     website
     twitter
     telegram
+    createdAtTimestamp
+    createdAtBlockNumber
+    txHash
   }
 }
 ```
@@ -253,8 +275,10 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
       "virtualBNB": "1000000000000000000",
       "migrationTarget": "20000000000000000000",
       "antibotEnabled": true,
-      "tradingBlock": "38120000",
+      "tradingBlock": "38120005",
       "raisedBNB": "5200000000000000000",
+      "bcTokensPool": "790000000000000000000000000",
+      "lastKnownPrice": "1086000000000000",
       "migrated": false,
       "pair": null,
       "migrationBNB": null,
@@ -265,172 +289,37 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
       "sellsCount": "21",
       "totalVolumeBNBBuy": "8400000000000000000",
       "totalVolumeBNBSell": "1050000000000000000",
+      "metaUri": "ipfs://QmPepeMoonMetaXYZ",
+      "description": "The moon-bound Pepe token on OneMEME.",
+      "image": "QmPepeMoonImageXYZ",
+      "website": "https://pepemoon.io",
+      "twitter": "https://twitter.com/pepemoon",
+      "telegram": "https://t.me/pepemoon",
       "createdAtTimestamp": "1700086400",
       "createdAtBlockNumber": "38120000",
-      "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
-      "metaUri": "ipfs://QmPepeMoonMetaXYZ123456789abcdef",
-      "description": "The moon-bound Pepe token on OneMEME.",
-      "image": "QmPepeMoonImageXYZ123456789abcdef",
-      "website": "https://pepemoon.io",
-      "twitter": "https://twitter.com/pepemoon",
-      "telegram": "https://t.me/pepemoon"
+      "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
     }
   }
 }
 ```
 
-### Token metadata (IPFS-resolved fields)
-
-```graphql
-{
-  token(id: "0xTOKEN_ADDRESS") {
-    id
-    name
-    symbol
-    metaUri
-    description
-    image
-    website
-    twitter
-    telegram
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "token": {
-      "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-      "name": "PepeMoon",
-      "symbol": "PPEM",
-      "metaUri": "ipfs://QmPepeMoonMetaXYZ123456789abcdef",
-      "description": "The moon-bound Pepe token on OneMEME.",
-      "image": "QmPepeMoonImageXYZ123456789abcdef",
-      "website": "https://pepemoon.io",
-      "twitter": "https://twitter.com/pepemoon",
-      "telegram": "https://t.me/pepemoon"
-    }
-  }
-}
-```
-
-### Tokens with a website link (metadata resolved)
+### Tokens still on the bonding curve — sorted by progress
 
 ```graphql
 {
   tokens(
-    where: { website_not: null }
-    orderBy: createdAtTimestamp
+    where: { migrated: false }
+    orderBy: raisedBNB
     orderDirection: desc
     first: 50
   ) {
     id
     name
     symbol
-    metaUri
-    description
-    image
-    website
-    twitter
-    telegram
-    raisedBNB
-    migrated
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "tokens": [
-      {
-        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-        "name": "PepeMoon",
-        "symbol": "PPEM",
-        "metaUri": "ipfs://QmPepeMoonMetaXYZ123456789abcdef",
-        "description": "The moon-bound Pepe token on OneMEME.",
-        "image": "QmPepeMoonImageXYZ123456789abcdef",
-        "website": "https://pepemoon.io",
-        "twitter": "https://twitter.com/pepemoon",
-        "telegram": "https://t.me/pepemoon",
-        "raisedBNB": "5200000000000000000",
-        "migrated": false
-      }
-    ]
-  }
-}
-```
-
-### Tokens by creator
-
-```graphql
-{
-  tokens(
-    where: { creator: "0xCREATOR_ADDRESS" }
-    orderBy: createdAtTimestamp
-    orderDirection: desc
-  ) {
-    id
-    name
-    symbol
     tokenType
     raisedBNB
     migrationTarget
-    migrated
-    pair
-    buysCount
-    sellsCount
-    totalVolumeBNBBuy
-    totalVolumeBNBSell
-    createdAtTimestamp
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "tokens": [
-      {
-        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-        "name": "PepeMoon",
-        "symbol": "PPEM",
-        "tokenType": "STANDARD",
-        "raisedBNB": "5200000000000000000",
-        "migrationTarget": "20000000000000000000",
-        "migrated": false,
-        "pair": null,
-        "buysCount": "84",
-        "sellsCount": "21",
-        "totalVolumeBNBBuy": "8400000000000000000",
-        "totalVolumeBNBSell": "1050000000000000000",
-        "createdAtTimestamp": "1700086400"
-      }
-    ]
-  }
-}
-```
-
-### Tokens still on the bonding curve (not yet migrated)
-
-```graphql
-{
-  tokens(where: { migrated: false }, orderBy: raisedBNB, orderDirection: desc) {
-    id
-    name
-    symbol
-    tokenType
-    raisedBNB
-    migrationTarget
-    antibotEnabled
-    tradingBlock
+    lastKnownPrice
     buysCount
     sellsCount
     creator
@@ -450,28 +339,13 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
         "name": "PepeMoon",
         "symbol": "PPEM",
         "tokenType": "STANDARD",
-        "raisedBNB": "5200000000000000000",
+        "raisedBNB": "17500000000000000000",
         "migrationTarget": "20000000000000000000",
-        "antibotEnabled": true,
-        "tradingBlock": "38120000",
-        "buysCount": "84",
-        "sellsCount": "21",
+        "lastKnownPrice": "8700000000000000",
+        "buysCount": "210",
+        "sellsCount": "47",
         "creator": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
         "createdAtTimestamp": "1700086400"
-      },
-      {
-        "id": "0x9988776655443322998877665544332299887766",
-        "name": "DogeKing",
-        "symbol": "DGKG",
-        "tokenType": "TAX",
-        "raisedBNB": "1800000000000000000",
-        "migrationTarget": "20000000000000000000",
-        "antibotEnabled": false,
-        "tradingBlock": "0",
-        "buysCount": "33",
-        "sellsCount": "7",
-        "creator": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
-        "createdAtTimestamp": "1700000000"
       }
     ]
   }
@@ -482,7 +356,12 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
 
 ```graphql
 {
-  tokens(where: { migrated: true }, orderBy: migratedAtTimestamp, orderDirection: desc) {
+  tokens(
+    where: { migrated: true }
+    orderBy: migratedAtTimestamp
+    orderDirection: desc
+    first: 20
+  ) {
     id
     name
     symbol
@@ -524,6 +403,32 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
 }
 ```
 
+### Tokens by creator
+
+```graphql
+{
+  tokens(
+    where: { creator: "0xWALLET" }
+    orderBy: createdAtTimestamp
+    orderDirection: desc
+  ) {
+    id
+    name
+    symbol
+    tokenType
+    raisedBNB
+    migrationTarget
+    migrated
+    pair
+    buysCount
+    sellsCount
+    totalVolumeBNBBuy
+    totalVolumeBNBSell
+    createdAtTimestamp
+  }
+}
+```
+
 ### Tokens by type
 
 ```graphql
@@ -533,6 +438,7 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
     where: { tokenType: "TAX" }
     orderBy: createdAtTimestamp
     orderDirection: desc
+    first: 50
   ) {
     id
     name
@@ -545,82 +451,60 @@ The `Factory` entity is a singleton. Query it as a list and take the first resul
 }
 ```
 
-**Example response:**
+### Tokens with antibot enabled
 
-```json
+```graphql
 {
-  "data": {
-    "tokens": [
-      {
-        "id": "0x9988776655443322998877665544332299887766",
-        "name": "DogeKing",
-        "symbol": "DGKG",
-        "raisedBNB": "1800000000000000000",
-        "migrated": false,
-        "creator": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
-        "createdAtTimestamp": "1700000000"
-      }
-    ]
+  tokens(
+    where: { antibotEnabled: true, migrated: false }
+    orderBy: createdAtTimestamp
+    orderDirection: desc
+  ) {
+    id
+    name
+    symbol
+    tradingBlock
+    createdAtBlockNumber
+    raisedBNB
   }
 }
 ```
 
-### Tokens near migration threshold (≥ 80 % filled)
-
-Returns tokens whose `raisedBNB` is at least 80 % of `migrationTarget`.  
-Since The Graph cannot compute ratios in a filter, the pattern is to filter by a known minimum `raisedBNB` value and sort descending — or use a client-side ratio check on results.
+### Tokens with IPFS metadata resolved
 
 ```graphql
-# Fetch active tokens sorted by raisedBNB desc; filter client-side for raisedBNB / migrationTarget >= 0.8
 {
   tokens(
-    where: { migrated: false }
-    orderBy: raisedBNB
+    where: { website_not: null }
+    orderBy: createdAtTimestamp
     orderDirection: desc
     first: 50
   ) {
     id
     name
     symbol
+    metaUri
+    description
+    image
+    website
+    twitter
+    telegram
     raisedBNB
-    migrationTarget
-    buysCount
+    migrated
   }
 }
 ```
 
-**Example response:**
-
-```json
-{
-  "data": {
-    "tokens": [
-      {
-        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-        "name": "PepeMoon",
-        "symbol": "PPEM",
-        "raisedBNB": "17500000000000000000",
-        "migrationTarget": "20000000000000000000",
-        "buysCount": "210"
-      },
-      {
-        "id": "0x9988776655443322998877665544332299887766",
-        "name": "DogeKing",
-        "symbol": "DGKG",
-        "raisedBNB": "16200000000000000000",
-        "migrationTarget": "20000000000000000000",
-        "buysCount": "183"
-      }
-    ]
-  }
-}
-```
-
-### Fresh launches — tokens with zero trades yet
+### Fresh launches — no trades yet
 
 ```graphql
 {
-  tokens(where: { buysCount: 0, migrated: false }, orderBy: createdAtTimestamp, orderDirection: desc) {
+  tokens(
+    where: { buysCount: 0, migrated: false }
+    orderBy: createdAtTimestamp
+    orderDirection: desc
+    first: 20
+  ) {
     id
     name
     symbol
@@ -632,66 +516,9 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
-**Example response:**
-
-```json
-{
-  "data": {
-    "tokens": [
-      {
-        "id": "0x5566778899aabbcc5566778899aabbcc55667788",
-        "name": "MoonFrog",
-        "symbol": "MFRG",
-        "tokenType": "STANDARD",
-        "creator": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "createdAtTimestamp": "1700090000",
-        "txHash": "0xdead1234dead1234dead1234dead1234dead1234dead1234dead1234dead1234"
-      }
-    ]
-  }
-}
-```
-
-### Tokens with antibot enabled
-
-```graphql
-{
-  tokens(where: { antibotEnabled: true }, orderBy: createdAtTimestamp, orderDirection: desc) {
-    id
-    name
-    symbol
-    tradingBlock
-    createdAtBlockNumber
-    raisedBNB
-    migrated
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "tokens": [
-      {
-        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-        "name": "PepeMoon",
-        "symbol": "PPEM",
-        "tradingBlock": "38120005",
-        "createdAtBlockNumber": "38120000",
-        "raisedBNB": "5200000000000000000",
-        "migrated": false
-      }
-    ]
-  }
-}
-```
-
 ### Tokens created within a time range
 
 ```graphql
-# Unix timestamps: 1700000000 to 1710000000
 {
   tokens(
     where: {
@@ -711,36 +538,9 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
-**Example response:**
-
-```json
-{
-  "data": {
-    "tokens": [
-      {
-        "id": "0x9988776655443322998877665544332299887766",
-        "name": "DogeKing",
-        "symbol": "DGKG",
-        "tokenType": "TAX",
-        "creator": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
-        "createdAtTimestamp": "1700000000"
-      },
-      {
-        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-        "name": "PepeMoon",
-        "symbol": "PPEM",
-        "tokenType": "STANDARD",
-        "creator": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "createdAtTimestamp": "1700086400"
-      }
-    ]
-  }
-}
-```
-
 ---
 
-## Trades
+## 3. Trades
 
 ### Recent trades across all tokens
 
@@ -797,7 +597,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
         "bnbAmount": "150000000000000000",
         "tokenAmount": "3600000000000000000000000",
         "tokensToDead": "0",
-        "raisedBNBAfter": "1800000000000000000",
+        "raisedBNBAfter": "1650000000000000000",
         "timestamp": "1700086450",
         "blockNumber": "38120040",
         "txHash": "0xbeef5678beef5678beef5678beef5678beef5678beef5678beef5678beef5678"
@@ -812,7 +612,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 ```graphql
 {
   trades(
-    where: { token: "0xTOKEN_ADDRESS" }
+    where: { token: "0xTOKEN" }
     orderBy: timestamp
     orderDirection: desc
     first: 100
@@ -830,34 +630,12 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
-**Example response:**
-
-```json
-{
-  "data": {
-    "trades": [
-      {
-        "type": "BUY",
-        "trader": "0xccddee001122ccddee001122ccddee001122ccdd",
-        "bnbAmount": "200000000000000000",
-        "tokenAmount": "4850000000000000000000000",
-        "tokensToDead": "0",
-        "raisedBNBAfter": "5200000000000000000",
-        "timestamp": "1700086500",
-        "blockNumber": "38120050",
-        "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
-      }
-    ]
-  }
-}
-```
-
 ### All trades by a specific wallet
 
 ```graphql
 {
   trades(
-    where: { trader: "0xTRADER_ADDRESS" }
+    where: { trader: "0xWALLET" }
     orderBy: timestamp
     orderDirection: desc
   ) {
@@ -873,38 +651,13 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
-**Example response:**
-
-```json
-{
-  "data": {
-    "trades": [
-      {
-        "type": "BUY",
-        "token": {
-          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-          "name": "PepeMoon",
-          "symbol": "PPEM",
-          "tokenType": "STANDARD"
-        },
-        "bnbAmount": "500000000000000000",
-        "tokenAmount": "12000000000000000000000000",
-        "tokensToDead": "0",
-        "raisedBNBAfter": "5200000000000000000",
-        "timestamp": "1700086500",
-        "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
-      }
-    ]
-  }
-}
-```
-
-### Buys only — sorted by BNB spent (largest first)
+### Largest buys — whale filter
 
 ```graphql
+# 500000000000000000 = 0.5 BNB in wei
 {
   trades(
-    where: { type: "BUY" }
+    where: { type: "BUY", bnbAmount_gt: "500000000000000000" }
     orderBy: bnbAmount
     orderDirection: desc
     first: 20
@@ -913,7 +666,6 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     trader
     bnbAmount
     tokenAmount
-    tokensToDead
     raisedBNBAfter
     timestamp
     txHash
@@ -936,7 +688,6 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
         "trader": "0xccddee001122ccddee001122ccddee001122ccdd",
         "bnbAmount": "2000000000000000000",
         "tokenAmount": "47000000000000000000000000",
-        "tokensToDead": "0",
         "raisedBNBAfter": "12000000000000000000",
         "timestamp": "1700083200",
         "txHash": "0xface1234face1234face1234face1234face1234face1234face1234face1234"
@@ -946,63 +697,19 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
-### Sells only — sorted by BNB received (largest first)
+### Buys on a specific token above a threshold
 
 ```graphql
 {
   trades(
-    where: { type: "SELL" }
-    orderBy: bnbAmount
-    orderDirection: desc
-    first: 20
-  ) {
-    token { id name symbol }
-    trader
-    bnbAmount
-    tokenAmount
-    raisedBNBAfter
-    timestamp
-    txHash
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "trades": [
-      {
-        "token": {
-          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-          "name": "PepeMoon",
-          "symbol": "PPEM"
-        },
-        "trader": "0x1234567890abcdef1234567890abcdef12345678",
-        "bnbAmount": "800000000000000000",
-        "tokenAmount": "19000000000000000000000000",
-        "raisedBNBAfter": "4400000000000000000",
-        "timestamp": "1700085000",
-        "txHash": "0xbeef5678beef5678beef5678beef5678beef5678beef5678beef5678beef5678"
-      }
-    ]
-  }
-}
-```
-
-### Large trades — whale filter (buys > 0.5 BNB)
-
-`bnbAmount` is stored in wei (1 BNB = 1e18).
-
-```graphql
-{
-  trades(
-    where: { type: "BUY", bnbAmount_gt: "500000000000000000" }
+    where: {
+      token: "0xTOKEN"
+      type: "BUY"
+      bnbAmount_gt: "100000000000000000"
+    }
     orderBy: bnbAmount
     orderDirection: desc
   ) {
-    token { id name symbol }
     trader
     bnbAmount
     tokenAmount
@@ -1012,30 +719,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
-**Example response:**
-
-```json
-{
-  "data": {
-    "trades": [
-      {
-        "token": {
-          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-          "name": "PepeMoon",
-          "symbol": "PPEM"
-        },
-        "trader": "0xccddee001122ccddee001122ccddee001122ccdd",
-        "bnbAmount": "2000000000000000000",
-        "tokenAmount": "47000000000000000000000000",
-        "timestamp": "1700083200",
-        "txHash": "0xface1234face1234face1234face1234face1234face1234face1234face1234"
-      }
-    ]
-  }
-}
-```
-
-### Trades with antibot penalty applied (tokensToDead > 0)
+### Trades with antibot penalty (tokensToDead > 0)
 
 ```graphql
 {
@@ -1051,30 +735,6 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     bnbAmount
     timestamp
     txHash
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "trades": [
-      {
-        "token": {
-          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-          "name": "PepeMoon",
-          "symbol": "PPEM"
-        },
-        "trader": "0x9999888877776666999988887777666699998888",
-        "tokenAmount": "10000000000000000000000000",
-        "tokensToDead": "1000000000000000000000000",
-        "bnbAmount": "400000000000000000",
-        "timestamp": "1700120010",
-        "txHash": "0x1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd"
-      }
-    ]
   }
 }
 ```
@@ -1101,38 +761,15 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
-**Example response:**
-
-```json
-{
-  "data": {
-    "trades": [
-      {
-        "type": "BUY",
-        "token": {
-          "id": "0x9988776655443322998877665544332299887766",
-          "name": "DogeKing",
-          "symbol": "DGKG"
-        },
-        "trader": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
-        "bnbAmount": "100000000000000000",
-        "tokenAmount": "2400000000000000000000000",
-        "timestamp": "1700000100"
-      }
-    ]
-  }
-}
-```
-
 ---
 
-## Migrations
+## 4. Migrations
 
 ### All migrations — newest first
 
 ```graphql
 {
-  migrations(orderBy: timestamp, orderDirection: desc) {
+  migrations(orderBy: timestamp, orderDirection: desc, first: 20) {
     id
     token { id name symbol tokenType creator }
     pair
@@ -1176,7 +813,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 
 ```graphql
 {
-  migrations(where: { token: "0xTOKEN_ADDRESS" }) {
+  migrations(where: { token: "0xTOKEN" }) {
     pair
     liquidityBNB
     liquidityTokens
@@ -1187,26 +824,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
-**Example response:**
-
-```json
-{
-  "data": {
-    "migrations": [
-      {
-        "pair": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
-        "liquidityBNB": "20000000000000000000",
-        "liquidityTokens": "500000000000000000000000000",
-        "timestamp": "1699950000",
-        "blockNumber": "38100000",
-        "txHash": "0xdead5678dead5678dead5678dead5678dead5678dead5678dead5678dead5678"
-      }
-    ]
-  }
-}
-```
-
-### Migrations sorted by liquidity BNB (largest first)
+### Migrations sorted by liquidity added
 
 ```graphql
 {
@@ -1220,38 +838,21 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
-**Example response:**
-
-```json
-{
-  "data": {
-    "migrations": [
-      {
-        "token": {
-          "id": "0x1122334455667788112233445566778811223344",
-          "name": "ShibaRocket",
-          "symbol": "SHRKT",
-          "tokenType": "STANDARD"
-        },
-        "pair": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
-        "liquidityBNB": "20000000000000000000",
-        "liquidityTokens": "500000000000000000000000000",
-        "timestamp": "1699950000"
-      }
-    ]
-  }
-}
-```
-
 ---
 
-## Vesting
+## 5. Vesting
 
-### All active vesting schedules (not voided)
+Creator vesting schedules are created in CreatorVault when a token migrates. One schedule exists per (token, beneficiary) pair.
+
+### All active vesting schedules
 
 ```graphql
 {
-  vestingSchedules(where: { voided: false }) {
+  vestingSchedules(
+    where: { voided: false }
+    orderBy: createdAtTimestamp
+    orderDirection: desc
+  ) {
     id
     token { id name symbol }
     beneficiary
@@ -1259,7 +860,6 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     duration
     claimed
     createdAtTimestamp
-    createdAtBlockNumber
     txHash
   }
 }
@@ -1283,7 +883,6 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
         "duration": "15552000",
         "claimed": "10000000000000000000000000",
         "createdAtTimestamp": "1700086400",
-        "createdAtBlockNumber": "38120000",
         "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
       }
     ]
@@ -1295,15 +894,52 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 
 ```graphql
 {
-  vestingSchedules(where: { beneficiary: "0xBENEFICIARY_ADDRESS" }) {
+  vestingSchedules(where: { beneficiary: "0xWALLET" }) {
     token { id name symbol tokenType }
     amount
     duration
     claimed
     voided
     burnedOnVoid
+    voidedTxHash
     createdAtTimestamp
     txHash
+  }
+}
+```
+
+### Schedules for a specific token
+
+```graphql
+{
+  vestingSchedules(where: { token: "0xTOKEN" }) {
+    beneficiary
+    amount
+    duration
+    claimed
+    voided
+    burnedOnVoid
+    createdAtTimestamp
+  }
+}
+```
+
+### Voided schedules
+
+```graphql
+{
+  vestingSchedules(
+    where: { voided: true }
+    orderBy: createdAtTimestamp
+    orderDirection: desc
+  ) {
+    token { id name symbol }
+    beneficiary
+    amount
+    claimed
+    burnedOnVoid
+    voidedTxHash
+    createdAtTimestamp
   }
 }
 ```
@@ -1316,54 +952,16 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
     "vestingSchedules": [
       {
         "token": {
-          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-          "name": "PepeMoon",
-          "symbol": "PPEM",
-          "tokenType": "STANDARD"
+          "id": "0x9988776655443322998877665544332299887766",
+          "name": "DogeKing",
+          "symbol": "DGKG"
         },
-        "amount": "50000000000000000000000000",
-        "duration": "15552000",
-        "claimed": "10000000000000000000000000",
-        "voided": false,
-        "burnedOnVoid": null,
-        "createdAtTimestamp": "1700086400",
-        "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
-      }
-    ]
-  }
-}
-```
-
-### Schedules for a specific token
-
-```graphql
-{
-  vestingSchedules(where: { token: "0xTOKEN_ADDRESS" }) {
-    beneficiary
-    amount
-    duration
-    claimed
-    voided
-    burnedOnVoid
-    createdAtTimestamp
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "vestingSchedules": [
-      {
-        "beneficiary": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "amount": "50000000000000000000000000",
-        "duration": "15552000",
-        "claimed": "10000000000000000000000000",
-        "voided": false,
-        "burnedOnVoid": null,
-        "createdAtTimestamp": "1700086400"
+        "beneficiary": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
+        "amount": "30000000000000000000000000",
+        "claimed": "5000000000000000000000000",
+        "burnedOnVoid": "25000000000000000000000000",
+        "voidedTxHash": "0xvoid1234void1234void1234void1234void1234void1234void1234void1234",
+        "createdAtTimestamp": "1700000000"
       }
     ]
   }
@@ -1375,7 +973,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 ```graphql
 {
   vestingClaims(
-    where: { schedule_: { beneficiary: "0xBENEFICIARY_ADDRESS" } }
+    where: { schedule_: { beneficiary: "0xWALLET" } }
     orderBy: timestamp
     orderDirection: desc
   ) {
@@ -1419,7 +1017,7 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 ```graphql
 {
   vestingClaims(
-    where: { schedule_: { token: "0xTOKEN_ADDRESS" } }
+    where: { schedule_: { token: "0xTOKEN" } }
     orderBy: timestamp
     orderDirection: desc
   ) {
@@ -1431,120 +1029,13 @@ Since The Graph cannot compute ratios in a filter, the pattern is to filter by a
 }
 ```
 
-**Example response:**
-
-```json
-{
-  "data": {
-    "vestingClaims": [
-      {
-        "schedule": {
-          "beneficiary": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-          "amount": "50000000000000000000000000",
-          "claimed": "10000000000000000000000000"
-        },
-        "amount": "10000000000000000000000000",
-        "timestamp": "1700200000",
-        "txHash": "0xclaim123claim123claim123claim123claim123claim123claim123claim123"
-      }
-    ]
-  }
-}
-```
-
-### Voided schedules
-
-```graphql
-{
-  vestingSchedules(where: { voided: true }) {
-    token { id name symbol }
-    beneficiary
-    amount
-    duration
-    claimed
-    burnedOnVoid
-    voidedTxHash
-    createdAtTimestamp
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "vestingSchedules": [
-      {
-        "token": {
-          "id": "0x9988776655443322998877665544332299887766",
-          "name": "DogeKing",
-          "symbol": "DGKG"
-        },
-        "beneficiary": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
-        "amount": "30000000000000000000000000",
-        "duration": "15552000",
-        "claimed": "5000000000000000000000000",
-        "burnedOnVoid": "25000000000000000000000000",
-        "voidedTxHash": "0xvoid1234void1234void1234void1234void1234void1234void1234void1234",
-        "createdAtTimestamp": "1700000000"
-      }
-    ]
-  }
-}
-```
-
-### Schedules with unclaimed balance (not voided, claimed < amount)
-
-```graphql
-# Fetches non-voided schedules where something has been claimed but not fully vested yet.
-# Filter claimed_lt cannot express "claimed < amount" dynamically — fetch all and compute client-side.
-{
-  vestingSchedules(
-    where: { voided: false }
-    orderBy: amount
-    orderDirection: desc
-  ) {
-    token { id name symbol }
-    beneficiary
-    amount
-    duration
-    claimed
-    createdAtTimestamp
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "vestingSchedules": [
-      {
-        "token": {
-          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-          "name": "PepeMoon",
-          "symbol": "PPEM"
-        },
-        "beneficiary": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "amount": "50000000000000000000000000",
-        "duration": "15552000",
-        "claimed": "10000000000000000000000000",
-        "createdAtTimestamp": "1700086400"
-      }
-    ]
-  }
-}
-```
-
 ---
 
-## Creator Vault Positions
+## 6. Creator Vault Positions
 
-The `CreatorVaultPosition` entity tracks Uniswap V3 LP positions (NFTs) registered in the CreatorVault contract when a bonding-curve token migrates. `CreatorVaultFeeClaim` records each time swap fees are split between creator, platform, and charity.
+`CreatorVaultPosition` tracks the Uniswap V3 LP NFT locked in CreatorVault when a `STANDARD` token migrates. The position `id` equals the token contract address — one position per token. `CreatorVaultFeeClaim` records every fee-collection call.
 
-### All LP positions — newest first
+### All positions — newest first
 
 ```graphql
 {
@@ -1555,16 +1046,16 @@ The `CreatorVaultPosition` entity tracks Uniswap V3 LP positions (NFTs) register
     feeWallet
     pool
     positionManager
-    totalCreator0
-    totalCreator1
-    totalPlatform0
-    totalPlatform1
-    totalCharity0
-    totalCharity1
+    totalCreatorFees0
+    totalCreatorFees1
+    totalPlatformFees0
+    totalPlatformFees1
+    totalCharityFees0
+    totalCharityFees1
     claimCount
     registeredAtTimestamp
     registeredAtBlockNumber
-    txHash
+    registeredTxHash
   }
 }
 ```
@@ -1586,40 +1077,40 @@ The `CreatorVaultPosition` entity tracks Uniswap V3 LP positions (NFTs) register
         "feeWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
         "pool": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
         "positionManager": "0xc36442b4a4522e871399cd717abdd847ab11fe88",
-        "totalCreator0": "120000000000000000",
-        "totalCreator1": "240000000000000000",
-        "totalPlatform0": "42000000000000000",
-        "totalPlatform1": "84000000000000000",
-        "totalCharity0": "8400000000000000",
-        "totalCharity1": "16800000000000000",
+        "totalCreatorFees0": "120000000000000000",
+        "totalCreatorFees1": "240000000000000000",
+        "totalPlatformFees0": "42000000000000000",
+        "totalPlatformFees1": "84000000000000000",
+        "totalCharityFees0": "8400000000000000",
+        "totalCharityFees1": "16800000000000000",
         "claimCount": "2",
         "registeredAtTimestamp": "1699950000",
         "registeredAtBlockNumber": "38100000",
-        "txHash": "0xdead5678dead5678dead5678dead5678dead5678dead5678dead5678dead5678"
+        "registeredTxHash": "0xdead5678dead5678dead5678dead5678dead5678dead5678dead5678dead5678"
       }
     ]
   }
 }
 ```
 
-### LP position for a specific token
+### Position with fee claim history for a specific token
 
 ```graphql
 {
-  creatorVaultPosition(id: "0xTOKEN_ADDRESS") {
+  creatorVaultPosition(id: "0xTOKEN") {
     tokenId
     feeWallet
     pool
     positionManager
-    totalCreator0
-    totalCreator1
-    totalPlatform0
-    totalPlatform1
-    totalCharity0
-    totalCharity1
+    totalCreatorFees0
+    totalCreatorFees1
+    totalPlatformFees0
+    totalPlatformFees1
+    totalCharityFees0
+    totalCharityFees1
     claimCount
     registeredAtTimestamp
-    feeClaims(orderBy: timestamp, orderDirection: desc, first: 10) {
+    feeClaims(orderBy: timestamp, orderDirection: desc, first: 20) {
       id
       feeWallet
       creator0
@@ -1629,6 +1120,7 @@ The `CreatorVaultPosition` entity tracks Uniswap V3 LP positions (NFTs) register
       charity0
       charity1
       timestamp
+      blockNumber
       txHash
     }
   }
@@ -1645,12 +1137,12 @@ The `CreatorVaultPosition` entity tracks Uniswap V3 LP positions (NFTs) register
       "feeWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
       "pool": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
       "positionManager": "0xc36442b4a4522e871399cd717abdd847ab11fe88",
-      "totalCreator0": "120000000000000000",
-      "totalCreator1": "240000000000000000",
-      "totalPlatform0": "42000000000000000",
-      "totalPlatform1": "84000000000000000",
-      "totalCharity0": "8400000000000000",
-      "totalCharity1": "16800000000000000",
+      "totalCreatorFees0": "120000000000000000",
+      "totalCreatorFees1": "240000000000000000",
+      "totalPlatformFees0": "42000000000000000",
+      "totalPlatformFees1": "84000000000000000",
+      "totalCharityFees0": "8400000000000000",
+      "totalCharityFees1": "16800000000000000",
       "claimCount": "2",
       "registeredAtTimestamp": "1699950000",
       "feeClaims": [
@@ -1664,6 +1156,7 @@ The `CreatorVaultPosition` entity tracks Uniswap V3 LP positions (NFTs) register
           "charity0": "4200000000000000",
           "charity1": "8400000000000000",
           "timestamp": "1700200000",
+          "blockNumber": "38160000",
           "txHash": "0xfee1111fee1111fee1111fee1111fee1111fee1111fee1111fee1111fee1111"
         }
       ]
@@ -1694,43 +1187,9 @@ The `CreatorVaultPosition` entity tracks Uniswap V3 LP positions (NFTs) register
 }
 ```
 
-**Example response:**
-
-```json
-{
-  "data": {
-    "creatorVaultFeeClaims": [
-      {
-        "id": "0xfee1111fee1111fee1111fee1111fee1111fee1111fee1111fee1111fee111100",
-        "position": {
-          "id": "0x1122334455667788112233445566778811223344",
-          "tokenId": "88421",
-          "pool": "0xcafe1234cafe1234cafe1234cafe1234cafe1234"
-        },
-        "token": {
-          "id": "0x1122334455667788112233445566778811223344",
-          "name": "ShibaRocket",
-          "symbol": "SHRKT"
-        },
-        "feeWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "creator0": "60000000000000000",
-        "creator1": "120000000000000000",
-        "platform0": "21000000000000000",
-        "platform1": "42000000000000000",
-        "charity0": "4200000000000000",
-        "charity1": "8400000000000000",
-        "timestamp": "1700200000",
-        "blockNumber": "38160000",
-        "txHash": "0xfee1111fee1111fee1111fee1111fee1111fee1111fee1111fee1111fee1111"
-      }
-    ]
-  }
-}
-```
-
 ---
 
-## Governance — Timelock actions
+## 7. Governance — Timelock
 
 ### Pending actions (queued, not yet executed or cancelled)
 
@@ -1768,7 +1227,7 @@ The `CreatorVaultPosition` entity tracks Uniswap V3 LP positions (NFTs) register
 }
 ```
 
-### Full timelock history — newest first
+### Full timelock history
 
 ```graphql
 {
@@ -1823,30 +1282,16 @@ The `CreatorVaultPosition` entity tracks Uniswap V3 LP positions (NFTs) register
 
 ```graphql
 {
-  timelockActions(where: { executed: true }, orderBy: queuedAtTimestamp, orderDirection: desc) {
+  timelockActions(
+    where: { executed: true }
+    orderBy: queuedAtTimestamp
+    orderDirection: desc
+  ) {
     id
     executeAfter
     queuedAtTimestamp
     queuedTxHash
     executedTxHash
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "timelockActions": [
-      {
-        "id": "0x1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d",
-        "executeAfter": "1700172800",
-        "queuedAtTimestamp": "1700086400",
-        "queuedTxHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
-        "executedTxHash": "0xexec5678exec5678exec5678exec5678exec5678exec5678exec5678exec5678"
-      }
-    ]
   }
 }
 ```
@@ -1855,7 +1300,11 @@ The `CreatorVaultPosition` entity tracks Uniswap V3 LP positions (NFTs) register
 
 ```graphql
 {
-  timelockActions(where: { cancelled: true }, orderBy: queuedAtTimestamp, orderDirection: desc) {
+  timelockActions(
+    where: { cancelled: true }
+    orderBy: queuedAtTimestamp
+    orderDirection: desc
+  ) {
     id
     executeAfter
     queuedAtTimestamp
@@ -1865,622 +1314,24 @@ The `CreatorVaultPosition` entity tracks Uniswap V3 LP positions (NFTs) register
 }
 ```
 
-**Example response:**
-
-```json
-{
-  "data": {
-    "timelockActions": [
-      {
-        "id": "0x5e6f7a8b5e6f7a8b5e6f7a8b5e6f7a8b5e6f7a8b5e6f7a8b5e6f7a8b5e6f7a8b",
-        "executeAfter": "1699900000",
-        "queuedAtTimestamp": "1699800000",
-        "queuedTxHash": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
-        "cancelledTxHash": "0xcanc9999canc9999canc9999canc9999canc9999canc9999canc9999canc9999"
-      }
-    ]
-  }
-}
-```
-
 ---
 
-## Peripheral — BuyBack
+## 8. Token Snapshots (OHLCV)
 
-> Requires `subgraph.full.yaml` deployment.
+One `TokenSnapshot` is written per (token, block) each time a trade occurs. Use these for candlestick / TradingView charts while a token is on the bonding curve.
 
-### BuyBack contract state
-
-```graphql
-{
-  buyBacks {
-    id
-    owner
-    router
-    buyToken
-    cooldown
-    lastBuyAt
-    totalBNBSpent
-    buybackCount
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "buyBacks": [
-      {
-        "id": "0xbbbb1111bbbb1111bbbb1111bbbb1111bbbb1111",
-        "owner": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "router": "0x10ed43c718714eb63d5aa57b78b54704e256024e",
-        "buyToken": "0x1ce0c2827e2ef14d5c4f29a091d735a204794041",
-        "cooldown": "3600",
-        "lastBuyAt": "1700085000",
-        "totalBNBSpent": "4500000000000000000",
-        "buybackCount": "9"
-      }
-    ]
-  }
-}
-```
-
-### BuyBack state with full event history
-
-```graphql
-{
-  buyBacks {
-    id
-    owner
-    router
-    buyToken
-    cooldown
-    lastBuyAt
-    totalBNBSpent
-    buybackCount
-    events(orderBy: timestamp, orderDirection: desc, first: 20) {
-      bnbSpent
-      balanceBefore
-      timestamp
-      txHash
-    }
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "buyBacks": [
-      {
-        "id": "0xbbbb1111bbbb1111bbbb1111bbbb1111bbbb1111",
-        "owner": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "router": "0x10ed43c718714eb63d5aa57b78b54704e256024e",
-        "buyToken": "0x1ce0c2827e2ef14d5c4f29a091d735a204794041",
-        "cooldown": "3600",
-        "lastBuyAt": "1700085000",
-        "totalBNBSpent": "4500000000000000000",
-        "buybackCount": "9",
-        "events": [
-          {
-            "bnbSpent": "500000000000000000",
-            "balanceBefore": "2000000000000000000",
-            "timestamp": "1700085000",
-            "txHash": "0xbuyb1234buyb1234buyb1234buyb1234buyb1234buyb1234buyb1234buyb1234"
-          },
-          {
-            "bnbSpent": "500000000000000000",
-            "balanceBefore": "2500000000000000000",
-            "timestamp": "1700081400",
-            "txHash": "0xbuyb5678buyb5678buyb5678buyb5678buyb5678buyb5678buyb5678buyb5678"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### Recent buyback events
-
-```graphql
-{
-  buyBackEvents(orderBy: timestamp, orderDirection: desc, first: 20) {
-    buyback { id buyToken }
-    bnbSpent
-    balanceBefore
-    timestamp
-    blockNumber
-    txHash
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "buyBackEvents": [
-      {
-        "buyback": {
-          "id": "0xbbbb1111bbbb1111bbbb1111bbbb1111bbbb1111",
-          "buyToken": "0x1ce0c2827e2ef14d5c4f29a091d735a204794041"
-        },
-        "bnbSpent": "500000000000000000",
-        "balanceBefore": "2000000000000000000",
-        "timestamp": "1700085000",
-        "blockNumber": "38119000",
-        "txHash": "0xbuyb1234buyb1234buyb1234buyb1234buyb1234buyb1234buyb1234buyb1234"
-      }
-    ]
-  }
-}
-```
-
-### Largest buybacks by BNB spent
-
-```graphql
-{
-  buyBackEvents(orderBy: bnbSpent, orderDirection: desc, first: 10) {
-    buyback { id buyToken }
-    bnbSpent
-    balanceBefore
-    timestamp
-    txHash
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "buyBackEvents": [
-      {
-        "buyback": {
-          "id": "0xbbbb1111bbbb1111bbbb1111bbbb1111bbbb1111",
-          "buyToken": "0x1ce0c2827e2ef14d5c4f29a091d735a204794041"
-        },
-        "bnbSpent": "1000000000000000000",
-        "balanceBefore": "5000000000000000000",
-        "timestamp": "1699950000",
-        "txHash": "0xbig1234big1234big1234big1234big1234big1234big1234big1234big1234"
-      }
-    ]
-  }
-}
-```
-
----
-
-## Peripheral — Collector
-
-> Requires `subgraph.full.yaml` deployment.
-
-### Collector state
-
-```graphql
-{
-  collectors {
-    id
-    owner
-    cr8
-    mtn
-    bb
-    tw
-    hk
-    kjc
-    totalDispersed
-    disperseCount
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "collectors": [
-      {
-        "id": "0xcccc2222cccc2222cccc2222cccc2222cccc2222",
-        "owner": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "cr8": "0x1111111111111111111111111111111111111111",
-        "mtn": "0x2222222222222222222222222222222222222222",
-        "bb": "0xbbbb1111bbbb1111bbbb1111bbbb1111bbbb1111",
-        "tw": "0x3333333333333333333333333333333333333333",
-        "hk": "0x4444444444444444444444444444444444444444",
-        "kjc": "0x5555555555555555555555555555555555555555",
-        "totalDispersed": "12000000000000000000",
-        "disperseCount": "24"
-      }
-    ]
-  }
-}
-```
-
-### Collector state with disperse history
-
-```graphql
-{
-  collectors {
-    id
-    owner
-    totalDispersed
-    disperseCount
-    disperses(orderBy: timestamp, orderDirection: desc, first: 20) {
-      total
-      timestamp
-      txHash
-    }
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "collectors": [
-      {
-        "id": "0xcccc2222cccc2222cccc2222cccc2222cccc2222",
-        "owner": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "totalDispersed": "12000000000000000000",
-        "disperseCount": "24",
-        "disperses": [
-          {
-            "total": "500000000000000000",
-            "timestamp": "1700085000",
-            "txHash": "0xdisp1234disp1234disp1234disp1234disp1234disp1234disp1234disp1234"
-          },
-          {
-            "total": "500000000000000000",
-            "timestamp": "1700071200",
-            "txHash": "0xdisp5678disp5678disp5678disp5678disp5678disp5678disp5678disp5678"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### All disperse events — newest first
-
-```graphql
-{
-  disperseEvents(orderBy: timestamp, orderDirection: desc) {
-    collector { id }
-    total
-    timestamp
-    blockNumber
-    txHash
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "disperseEvents": [
-      {
-        "collector": { "id": "0xcccc2222cccc2222cccc2222cccc2222cccc2222" },
-        "total": "500000000000000000",
-        "timestamp": "1700085000",
-        "blockNumber": "38119000",
-        "txHash": "0xdisp1234disp1234disp1234disp1234disp1234disp1234disp1234disp1234"
-      }
-    ]
-  }
-}
-```
-
-### Largest disperse events
-
-```graphql
-{
-  disperseEvents(orderBy: total, orderDirection: desc, first: 10) {
-    collector { id }
-    total
-    timestamp
-    txHash
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "disperseEvents": [
-      {
-        "collector": { "id": "0xcccc2222cccc2222cccc2222cccc2222cccc2222" },
-        "total": "1000000000000000000",
-        "timestamp": "1699950000",
-        "txHash": "0xbigd1234bigd1234bigd1234bigd1234bigd1234bigd1234bigd1234bigd1234"
-      }
-    ]
-  }
-}
-```
-
----
-
-## Peripheral — Vault
-
-> Requires `subgraph.full.yaml` deployment.
-
-### Vault state
-
-```graphql
-{
-  vaultContracts {
-    id
-    proposalCount
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "vaultContracts": [
-      {
-        "id": "0xdddd3333dddd3333dddd3333dddd3333dddd3333",
-        "proposalCount": "7"
-      }
-    ]
-  }
-}
-```
-
-### All proposals — newest first
-
-```graphql
-{
-  vaultProposals(orderBy: createdAtTimestamp, orderDirection: desc) {
-    id
-    vault { id }
-    proposalId
-    to
-    value
-    data
-    proposer
-    confirmCount
-    executed
-    cancelled
-    executedTxHash
-    cancelledTxHash
-    createdAtTimestamp
-    createdAtBlockNumber
-    txHash
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "vaultProposals": [
-      {
-        "id": "0xdddd3333dddd3333dddd3333dddd3333dddd3333000000000000000000000000000000000000000000000000000000000000007",
-        "vault": { "id": "0xdddd3333dddd3333dddd3333dddd3333dddd3333" },
-        "proposalId": "7",
-        "to": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "value": "1000000000000000000",
-        "data": "0x",
-        "proposer": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
-        "confirmCount": 2,
-        "executed": true,
-        "cancelled": false,
-        "executedTxHash": "0xexec5678exec5678exec5678exec5678exec5678exec5678exec5678exec5678",
-        "cancelledTxHash": null,
-        "createdAtTimestamp": "1700080000",
-        "createdAtBlockNumber": "38117000",
-        "txHash": "0xprop1234prop1234prop1234prop1234prop1234prop1234prop1234prop1234"
-      }
-    ]
-  }
-}
-```
-
-### Proposals awaiting execution (2-of-3 threshold met, not yet executed)
-
-```graphql
-{
-  vaultProposals(
-    where: { executed: false, cancelled: false, confirmCount_gte: 2 }
-    orderBy: createdAtTimestamp
-    orderDirection: desc
-  ) {
-    proposalId
-    to
-    value
-    data
-    proposer
-    confirmCount
-    createdAtTimestamp
-    txHash
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "vaultProposals": [
-      {
-        "proposalId": "8",
-        "to": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "value": "500000000000000000",
-        "data": "0x",
-        "proposer": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
-        "confirmCount": 2,
-        "createdAtTimestamp": "1700086400",
-        "txHash": "0xprop5678prop5678prop5678prop5678prop5678prop5678prop5678prop5678"
-      }
-    ]
-  }
-}
-```
-
-### Proposals still collecting signatures (threshold not yet met)
-
-```graphql
-{
-  vaultProposals(
-    where: { executed: false, cancelled: false, confirmCount_lt: 2 }
-    orderBy: createdAtTimestamp
-    orderDirection: desc
-  ) {
-    proposalId
-    to
-    value
-    proposer
-    confirmCount
-    createdAtTimestamp
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "vaultProposals": [
-      {
-        "proposalId": "9",
-        "to": "0x9988776655443322998877665544332299887766",
-        "value": "0",
-        "proposer": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
-        "confirmCount": 1,
-        "createdAtTimestamp": "1700090000"
-      }
-    ]
-  }
-}
-```
-
-### Executed proposals
-
-```graphql
-{
-  vaultProposals(
-    where: { executed: true }
-    orderBy: createdAtTimestamp
-    orderDirection: desc
-  ) {
-    proposalId
-    to
-    value
-    data
-    proposer
-    createdAtTimestamp
-    txHash
-    executedTxHash
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "vaultProposals": [
-      {
-        "proposalId": "7",
-        "to": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "value": "1000000000000000000",
-        "data": "0x",
-        "proposer": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
-        "createdAtTimestamp": "1700080000",
-        "txHash": "0xprop1234prop1234prop1234prop1234prop1234prop1234prop1234prop1234",
-        "executedTxHash": "0xexec5678exec5678exec5678exec5678exec5678exec5678exec5678exec5678"
-      }
-    ]
-  }
-}
-```
-
-### Cancelled proposals
-
-```graphql
-{
-  vaultProposals(
-    where: { cancelled: true }
-    orderBy: createdAtTimestamp
-    orderDirection: desc
-  ) {
-    proposalId
-    to
-    value
-    proposer
-    createdAtTimestamp
-    txHash
-    cancelledTxHash
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "vaultProposals": [
-      {
-        "proposalId": "6",
-        "to": "0x9988776655443322998877665544332299887766",
-        "value": "0",
-        "proposer": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "createdAtTimestamp": "1699900000",
-        "txHash": "0xcanp1234canp1234canp1234canp1234canp1234canp1234canp1234canp1234",
-        "cancelledTxHash": "0xcanc9999canc9999canc9999canc9999canc9999canc9999canc9999canc9999"
-      }
-    ]
-  }
-}
-```
-
----
-
-## Token Snapshots (OHLCV)
-
-Per-block price/volume snapshots recorded each time a buy or sell occurs. One `TokenSnapshot` entity per (token, block) pair.
-
-**Raw pool fields:** `openRaisedBNB` / `closeRaisedBNB` — the bonding-curve `raisedBNB` value before/after the first/last trade in the block.
-
-**Spot price fields (wei, scaled ×1e18):** `openPrice`, `highPrice`, `lowPrice`, `closePrice` — derived from `BondingCurve.getSpotPrice(token)` using `(virtualBNB + raisedBNB) × 1e18 / bcTokensPool`. `openPrice` is the `lastKnownPrice` carried forward from the previous trade; `closePrice` is fetched post-trade.
+**Price fields** are in wei scaled ×1e18: `(virtualBNB + raisedBNB) × 1e18 / bcTokensPool`.
 
 ### Recent snapshots for a token
 
 ```graphql
 {
   tokenSnapshots(
-    where: { token: "0xTOKEN_ADDRESS" }
+    where: { token: "0xTOKEN" }
     orderBy: blockNumber
     orderDirection: desc
-    first: 50
+    first: 100
   ) {
-    id
     blockNumber
     timestamp
     openPrice
@@ -2503,7 +1354,6 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
   "data": {
     "tokenSnapshots": [
       {
-        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b200246f90",
         "blockNumber": "38120080",
         "timestamp": "1700086740",
         "openPrice": "1042000000000000",
@@ -2517,7 +1367,6 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
         "sellCount": 0
       },
       {
-        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b200246f80",
         "blockNumber": "38120064",
         "timestamp": "1700086692",
         "openPrice": "1000000000000000",
@@ -2541,9 +1390,9 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
 {
   tokenSnapshots(
     where: {
-      token: "0xTOKEN_ADDRESS"
-      blockNumber_gte: "30000000"
-      blockNumber_lte: "30001000"
+      token: "0xTOKEN"
+      blockNumber_gte: "38120000"
+      blockNumber_lte: "38121000"
     }
     orderBy: blockNumber
     orderDirection: asc
@@ -2551,6 +1400,8 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
   ) {
     blockNumber
     timestamp
+    openPrice
+    closePrice
     openRaisedBNB
     closeRaisedBNB
     volumeBNB
@@ -2560,41 +1411,39 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
 }
 ```
 
-**Example response:**
-
-```json
-{
-  "data": {
-    "tokenSnapshots": [
-      {
-        "blockNumber": "38120000",
-        "timestamp": "1700086400",
-        "openRaisedBNB": "1000000000000000000",
-        "closeRaisedBNB": "1300000000000000000",
-        "volumeBNB": "300000000000000000",
-        "buyCount": 3,
-        "sellCount": 0
-      },
-      {
-        "blockNumber": "38120020",
-        "timestamp": "1700086460",
-        "openRaisedBNB": "1300000000000000000",
-        "closeRaisedBNB": "1150000000000000000",
-        "volumeBNB": "150000000000000000",
-        "buyCount": 0,
-        "sellCount": 1
-      }
-    ]
-  }
-}
-```
-
-### High-volume blocks — snapshots with most BNB traded
+### Snapshots in a time range
 
 ```graphql
 {
   tokenSnapshots(
-    where: { token: "0xTOKEN_ADDRESS" }
+    where: {
+      token: "0xTOKEN"
+      timestamp_gte: "1700000000"
+      timestamp_lte: "1701000000"
+    }
+    orderBy: timestamp
+    orderDirection: asc
+    first: 1000
+  ) {
+    blockNumber
+    timestamp
+    openPrice
+    highPrice
+    lowPrice
+    closePrice
+    volumeBNB
+    buyCount
+    sellCount
+  }
+}
+```
+
+### Highest-volume blocks for a token
+
+```graphql
+{
+  tokenSnapshots(
+    where: { token: "0xTOKEN" }
     orderBy: volumeBNB
     orderDirection: desc
     first: 10
@@ -2604,88 +1453,40 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
     volumeBNB
     buyCount
     sellCount
-    openRaisedBNB
-    closeRaisedBNB
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "tokenSnapshots": [
-      {
-        "blockNumber": "38120030",
-        "timestamp": "1700086490",
-        "volumeBNB": "2000000000000000000",
-        "buyCount": 4,
-        "sellCount": 1,
-        "openRaisedBNB": "3000000000000000000",
-        "closeRaisedBNB": "4800000000000000000"
-      }
-    ]
-  }
-}
-```
-
-### Latest snapshot (current price proxy)
-
-```graphql
-{
-  tokenSnapshots(
-    where: { token: "0xTOKEN_ADDRESS" }
-    orderBy: blockNumber
-    orderDirection: desc
-    first: 1
-  ) {
-    blockNumber
-    timestamp
+    openPrice
     closePrice
-    closeRaisedBNB
-    volumeBNB
   }
 }
 ```
 
-**Example response:**
+---
 
-```json
-{
-  "data": {
-    "tokenSnapshots": [
-      {
-        "blockNumber": "38120080",
-        "timestamp": "1700086740",
-        "closePrice": "1086000000000000",
-        "closeRaisedBNB": "5200000000000000000",
-        "volumeBNB": "200000000000000000"
-      }
-    ]
-  }
-}
-```
+## 9. Trending — Period Stats
 
-### All snapshots across all tokens in a time window
+`TokenPeriodStats` buckets volume and price by time window. Periods: `5m`, `45m`, `1h`, `1d`, `7d`.  
+One entity per `(token, period, bucketId)` where `bucketId = floor(timestamp / windowSeconds)`.
+
+### Current 1h candles — top tokens by volume
 
 ```graphql
 {
-  tokenSnapshots(
-    where: {
-      timestamp_gte: "1700000000"
-      timestamp_lte: "1700086400"
-    }
+  tokenPeriodStats(
+    where: { period: "1h" }
     orderBy: volumeBNB
     orderDirection: desc
-    first: 100
+    first: 20
   ) {
     token { id name symbol }
-    blockNumber
-    timestamp
+    periodStart
+    buyVolumeBNB
+    sellVolumeBNB
     volumeBNB
-    buyCount
-    sellCount
+    buysCount
+    sellsCount
+    openPrice
+    highPrice
+    lowPrice
+    closePrice
   }
 }
 ```
@@ -2695,199 +1496,114 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
 ```json
 {
   "data": {
-    "tokenSnapshots": [
+    "tokenPeriodStats": [
       {
         "token": {
           "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
           "name": "PepeMoon",
           "symbol": "PPEM"
         },
-        "blockNumber": "38120030",
-        "timestamp": "1700086490",
-        "volumeBNB": "2000000000000000000",
-        "buyCount": 4,
-        "sellCount": 1
+        "periodStart": "1700085600",
+        "buyVolumeBNB": "3200000000000000000",
+        "sellVolumeBNB": "400000000000000000",
+        "volumeBNB": "3600000000000000000",
+        "buysCount": "18",
+        "sellsCount": "4",
+        "openPrice": "1000000000000000",
+        "highPrice": "1086000000000000",
+        "lowPrice": "995000000000000",
+        "closePrice": "1086000000000000"
       }
     ]
   }
 }
 ```
 
----
-
-## Holders
-
-`Holder` entities track the current ERC-20 balance of every address that has ever received a token while it is on the bonding curve. Tracking stops once the token migrates to a DEX (to avoid indexing high-volume swap traffic).
-
-### All holders of a token — sorted by balance
+### 5-minute candles for a specific token
 
 ```graphql
 {
-  holders(
-    where: { token: "0xTOKEN_ADDRESS" }
-    orderBy: balance
+  tokenPeriodStats(
+    where: { token: "0xTOKEN", period: "5m" }
+    orderBy: periodStart
     orderDirection: desc
-    first: 100
+    first: 50
   ) {
-    id
-    address
-    balance
-    lastUpdatedBlock
-    lastUpdatedTimestamp
+    periodStart
+    bucketId
+    buyVolumeBNB
+    sellVolumeBNB
+    volumeBNB
+    buysCount
+    sellsCount
+    openPrice
+    highPrice
+    lowPrice
+    closePrice
   }
 }
 ```
 
-**Example response:**
-
-```json
-{
-  "data": {
-    "holders": [
-      {
-        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2f1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "address": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "balance": "50000000000000000000000000",
-        "lastUpdatedBlock": "38120050",
-        "lastUpdatedTimestamp": "1700086500"
-      },
-      {
-        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2ccddee001122ccddee001122ccddee001122ccdd",
-        "address": "0xccddee001122ccddee001122ccddee001122ccdd",
-        "balance": "4850000000000000000000000",
-        "lastUpdatedBlock": "38120050",
-        "lastUpdatedTimestamp": "1700086500"
-      }
-    ]
-  }
-}
-```
-
-### Top 10 holders (whale list)
+### 1-day candles for a specific token
 
 ```graphql
 {
-  holders(
-    where: { token: "0xTOKEN_ADDRESS" }
-    orderBy: balance
+  tokenPeriodStats(
+    where: { token: "0xTOKEN", period: "1d" }
+    orderBy: periodStart
+    orderDirection: desc
+    first: 30
+  ) {
+    periodStart
+    buyVolumeBNB
+    sellVolumeBNB
+    volumeBNB
+    buysCount
+    sellsCount
+    openPrice
+    highPrice
+    lowPrice
+    closePrice
+  }
+}
+```
+
+### Trending tokens — most buys in the current 45-minute window
+
+```graphql
+{
+  tokenPeriodStats(
+    where: { period: "45m" }
+    orderBy: buysCount
     orderDirection: desc
     first: 10
   ) {
-    address
-    balance
-    lastUpdatedBlock
+    token { id name symbol tokenType raisedBNB migrationTarget migrated }
+    periodStart
+    buysCount
+    sellsCount
+    volumeBNB
+    closePrice
   }
 }
 ```
 
-**Example response:**
+---
 
-```json
-{
-  "data": {
-    "holders": [
-      {
-        "address": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "balance": "50000000000000000000000000",
-        "lastUpdatedBlock": "38120050"
-      },
-      {
-        "address": "0xccddee001122ccddee001122ccddee001122ccdd",
-        "balance": "4850000000000000000000000",
-        "lastUpdatedBlock": "38120050"
-      }
-    ]
-  }
-}
-```
+## 10. Holders
 
-### Holder count for a token (via token entity)
+Holder balances are tracked via ERC-20 `Transfer` events while a token is on the bonding curve (`migrated = false`). Tracking stops at migration to avoid DEX swap noise.
 
-```graphql
-{
-  token(id: "0xTOKEN_ADDRESS") {
-    id
-    name
-    symbol
-    holders {
-      id
-    }
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "token": {
-      "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-      "name": "PepeMoon",
-      "symbol": "PPEM",
-      "holders": [
-        { "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2f1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4" },
-        { "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2ccddee001122ccddee001122ccddee001122ccdd" }
-      ]
-    }
-  }
-}
-```
-
-### Single wallet — all tokens held (pre-migration positions)
+### Top holders for a token
 
 ```graphql
 {
   holders(
-    where: { address: "0xWALLET_ADDRESS" }
+    where: { token: "0xTOKEN" }
     orderBy: balance
     orderDirection: desc
     first: 50
   ) {
-    token { id name symbol raisedBNB migrated }
-    balance
-    lastUpdatedBlock
-    lastUpdatedTimestamp
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "holders": [
-      {
-        "token": {
-          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-          "name": "PepeMoon",
-          "symbol": "PPEM",
-          "raisedBNB": "5200000000000000000",
-          "migrated": false
-        },
-        "balance": "50000000000000000000000000",
-        "lastUpdatedBlock": "38120050",
-        "lastUpdatedTimestamp": "1700086500"
-      }
-    ]
-  }
-}
-```
-
-### Holders updated in last N blocks
-
-```graphql
-{
-  holders(
-    where: {
-      token: "0xTOKEN_ADDRESS"
-      lastUpdatedBlock_gte: "30000000"
-    }
-    orderBy: lastUpdatedBlock
-    orderDirection: desc
-    first: 50
-  ) {
     address
     balance
     lastUpdatedBlock
@@ -2904,45 +1620,67 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
     "holders": [
       {
         "address": "0xccddee001122ccddee001122ccddee001122ccdd",
-        "balance": "4850000000000000000000000",
+        "balance": "25000000000000000000000000",
         "lastUpdatedBlock": "38120050",
         "lastUpdatedTimestamp": "1700086500"
+      },
+      {
+        "address": "0x1234567890abcdef1234567890abcdef12345678",
+        "balance": "12000000000000000000000000",
+        "lastUpdatedBlock": "38120030",
+        "lastUpdatedTimestamp": "1700086440"
       }
     ]
   }
 }
 ```
 
-### Token with snapshot and holder data combined
+### All tokens held by a wallet (bonding-curve phase only)
 
 ```graphql
 {
-  token(id: "0xTOKEN_ADDRESS") {
+  holders(
+    where: { address: "0xWALLET", balance_gt: "0" }
+    orderBy: balance
+    orderDirection: desc
+  ) {
+    token { id name symbol tokenType raisedBNB migrationTarget }
+    balance
+    lastUpdatedBlock
+    lastUpdatedTimestamp
+  }
+}
+```
+
+### Holder count approximation
+
+```graphql
+{
+  holders(
+    where: { token: "0xTOKEN", balance_gt: "0" }
+    orderBy: balance
+    orderDirection: desc
+    first: 1000
+  ) {
+    address
+    balance
+  }
+}
+```
+
+---
+
+## 11. OneCoinLocker
+
+### Locker contract state
+
+```graphql
+{
+  lockers {
     id
-    name
-    symbol
-    raisedBNB
-    migrated
-    metaUri
-    description
-    image
-    website
-    twitter
-    telegram
-    snapshots(orderBy: blockNumber, orderDirection: desc, first: 20) {
-      blockNumber
-      timestamp
-      openRaisedBNB
-      closeRaisedBNB
-      volumeBNB
-      buyCount
-      sellCount
-    }
-    holders(orderBy: balance, orderDirection: desc, first: 20) {
-      address
-      balance
-      lastUpdatedBlock
-    }
+    totalLocks
+    activeLocks
+    fee
   }
 }
 ```
@@ -2952,403 +1690,17 @@ Per-block price/volume snapshots recorded each time a buy or sell occurs. One `T
 ```json
 {
   "data": {
-    "token": {
-      "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-      "name": "PepeMoon",
-      "symbol": "PPEM",
-      "raisedBNB": "5200000000000000000",
-      "migrated": false,
-      "metaUri": "ipfs://QmPepeMoonMetaXYZ123456789abcdef",
-      "description": "The moon-bound Pepe token on OneMEME.",
-      "image": "QmPepeMoonImageXYZ123456789abcdef",
-      "website": "https://pepemoon.io",
-      "twitter": "https://twitter.com/pepemoon",
-      "telegram": "https://t.me/pepemoon",
-      "snapshots": [
-        {
-          "blockNumber": "38120080",
-          "timestamp": "1700086740",
-          "openRaisedBNB": "5000000000000000000",
-          "closeRaisedBNB": "5200000000000000000",
-          "volumeBNB": "200000000000000000",
-          "buyCount": 1,
-          "sellCount": 0
-        }
-      ],
-      "holders": [
-        {
-          "address": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-          "balance": "50000000000000000000000000",
-          "lastUpdatedBlock": "38120050"
-        },
-        {
-          "address": "0xccddee001122ccddee001122ccddee001122ccdd",
-          "balance": "4850000000000000000000000",
-          "lastUpdatedBlock": "38120050"
-        }
-      ]
-    }
-  }
-}
-```
-
----
-
-## Trending Tokens
-
-`TokenPeriodStats` tracks buy/sell volume and trade counts in five rolling windows: `5m`, `45m`, `1h`, `1d`, `7d`. Each entity covers one (token, period, bucket) combination. Query the current bucket by filtering `periodStart` to find the bucket that contains now.
-
-### Top trending tokens — 5 min window
-
-```graphql
-# Replace BUCKET_START with: Math.floor(Date.now() / 1000 / 300) * 300
-{
-  tokenPeriodStats(
-    where: { period: "5m", periodStart: "BUCKET_START" }
-    orderBy: volumeBNB
-    orderDirection: desc
-    first: 20
-  ) {
-    token { id name symbol raisedBNB migrated }
-    volumeBNB
-    buyVolumeBNB
-    sellVolumeBNB
-    buysCount
-    sellsCount
-    openRaisedBNB
-    closeRaisedBNB
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "tokenPeriodStats": [
+    "lockers": [
       {
-        "token": {
-          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-          "name": "PepeMoon",
-          "symbol": "PPEM",
-          "raisedBNB": "5200000000000000000",
-          "migrated": false
-        },
-        "volumeBNB": "550000000000000000",
-        "buyVolumeBNB": "400000000000000000",
-        "sellVolumeBNB": "150000000000000000",
-        "buysCount": "4",
-        "sellsCount": "1",
-        "openRaisedBNB": "5000000000000000000",
-        "closeRaisedBNB": "5200000000000000000"
-      },
-      {
-        "token": {
-          "id": "0x9988776655443322998877665544332299887766",
-          "name": "DogeKing",
-          "symbol": "DGKG",
-          "raisedBNB": "1800000000000000000",
-          "migrated": false
-        },
-        "volumeBNB": "200000000000000000",
-        "buyVolumeBNB": "200000000000000000",
-        "sellVolumeBNB": "0",
-        "buysCount": "2",
-        "sellsCount": "0",
-        "openRaisedBNB": "1600000000000000000",
-        "closeRaisedBNB": "1800000000000000000"
+        "id": "0x6c6e9740753d9f6c1e5d61c8bc0f34e37590f6c5",
+        "totalLocks": "84",
+        "activeLocks": "71",
+        "fee": "1000000000000000"
       }
     ]
   }
 }
 ```
-
-### Top trending tokens — 1 hour window
-
-```graphql
-# Replace BUCKET_START with: Math.floor(Date.now() / 1000 / 3600) * 3600
-{
-  tokenPeriodStats(
-    where: { period: "1h", periodStart: "BUCKET_START" }
-    orderBy: volumeBNB
-    orderDirection: desc
-    first: 20
-  ) {
-    token { id name symbol raisedBNB migrated }
-    volumeBNB
-    buyVolumeBNB
-    sellVolumeBNB
-    buysCount
-    sellsCount
-    openRaisedBNB
-    closeRaisedBNB
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "tokenPeriodStats": [
-      {
-        "token": {
-          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-          "name": "PepeMoon",
-          "symbol": "PPEM",
-          "raisedBNB": "5200000000000000000",
-          "migrated": false
-        },
-        "volumeBNB": "4100000000000000000",
-        "buyVolumeBNB": "3500000000000000000",
-        "sellVolumeBNB": "600000000000000000",
-        "buysCount": "35",
-        "sellsCount": "8",
-        "openRaisedBNB": "1000000000000000000",
-        "closeRaisedBNB": "5200000000000000000"
-      }
-    ]
-  }
-}
-```
-
-### Top trending tokens — 24 hour window
-
-```graphql
-# Replace BUCKET_START with: Math.floor(Date.now() / 1000 / 86400) * 86400
-{
-  tokenPeriodStats(
-    where: { period: "1d", periodStart: "BUCKET_START" }
-    orderBy: volumeBNB
-    orderDirection: desc
-    first: 20
-  ) {
-    token { id name symbol raisedBNB migrated }
-    volumeBNB
-    buyVolumeBNB
-    sellVolumeBNB
-    buysCount
-    sellsCount
-    openRaisedBNB
-    closeRaisedBNB
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "tokenPeriodStats": [
-      {
-        "token": {
-          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-          "name": "PepeMoon",
-          "symbol": "PPEM",
-          "raisedBNB": "5200000000000000000",
-          "migrated": false
-        },
-        "volumeBNB": "8400000000000000000",
-        "buyVolumeBNB": "7000000000000000000",
-        "sellVolumeBNB": "1400000000000000000",
-        "buysCount": "84",
-        "sellsCount": "21",
-        "openRaisedBNB": "0",
-        "closeRaisedBNB": "5200000000000000000"
-      }
-    ]
-  }
-}
-```
-
-### Top trending tokens — 7 day window
-
-```graphql
-# Replace BUCKET_START with: Math.floor(Date.now() / 1000 / 604800) * 604800
-{
-  tokenPeriodStats(
-    where: { period: "7d", periodStart: "BUCKET_START" }
-    orderBy: volumeBNB
-    orderDirection: desc
-    first: 20
-  ) {
-    token { id name symbol raisedBNB migrated }
-    volumeBNB
-    buyVolumeBNB
-    sellVolumeBNB
-    buysCount
-    sellsCount
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "tokenPeriodStats": [
-      {
-        "token": {
-          "id": "0x1122334455667788112233445566778811223344",
-          "name": "ShibaRocket",
-          "symbol": "SHRKT",
-          "raisedBNB": "0",
-          "migrated": true
-        },
-        "volumeBNB": "40500000000000000000",
-        "buyVolumeBNB": "32000000000000000000",
-        "sellVolumeBNB": "8500000000000000000",
-        "buysCount": "312",
-        "sellsCount": "97"
-      },
-      {
-        "token": {
-          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-          "name": "PepeMoon",
-          "symbol": "PPEM",
-          "raisedBNB": "5200000000000000000",
-          "migrated": false
-        },
-        "volumeBNB": "8400000000000000000",
-        "buyVolumeBNB": "7000000000000000000",
-        "sellVolumeBNB": "1400000000000000000",
-        "buysCount": "84",
-        "sellsCount": "21"
-      }
-    ]
-  }
-}
-```
-
-### All period stats for a specific token
-
-```graphql
-{
-  tokenPeriodStats(
-    where: { token: "0xTOKEN_ADDRESS" }
-    orderBy: periodStart
-    orderDirection: desc
-    first: 50
-  ) {
-    period
-    periodStart
-    volumeBNB
-    buyVolumeBNB
-    sellVolumeBNB
-    buysCount
-    sellsCount
-    openRaisedBNB
-    closeRaisedBNB
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "tokenPeriodStats": [
-      {
-        "period": "5m",
-        "periodStart": "1700086800",
-        "volumeBNB": "200000000000000000",
-        "buyVolumeBNB": "200000000000000000",
-        "sellVolumeBNB": "0",
-        "buysCount": "2",
-        "sellsCount": "0",
-        "openRaisedBNB": "5000000000000000000",
-        "closeRaisedBNB": "5200000000000000000"
-      },
-      {
-        "period": "1h",
-        "periodStart": "1700085600",
-        "volumeBNB": "4100000000000000000",
-        "buyVolumeBNB": "3500000000000000000",
-        "sellVolumeBNB": "600000000000000000",
-        "buysCount": "35",
-        "sellsCount": "8",
-        "openRaisedBNB": "1000000000000000000",
-        "closeRaisedBNB": "5200000000000000000"
-      },
-      {
-        "period": "1d",
-        "periodStart": "1700006400",
-        "volumeBNB": "8400000000000000000",
-        "buyVolumeBNB": "7000000000000000000",
-        "sellVolumeBNB": "1400000000000000000",
-        "buysCount": "84",
-        "sellsCount": "21",
-        "openRaisedBNB": "0",
-        "closeRaisedBNB": "5200000000000000000"
-      }
-    ]
-  }
-}
-```
-
-### Token 24 h history — all hourly buckets
-
-```graphql
-{
-  tokenPeriodStats(
-    where: { token: "0xTOKEN_ADDRESS", period: "1h" }
-    orderBy: periodStart
-    orderDirection: desc
-    first: 24
-  ) {
-    periodStart
-    volumeBNB
-    buyVolumeBNB
-    sellVolumeBNB
-    buysCount
-    sellsCount
-    openRaisedBNB
-    closeRaisedBNB
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "tokenPeriodStats": [
-      {
-        "periodStart": "1700085600",
-        "volumeBNB": "4100000000000000000",
-        "buyVolumeBNB": "3500000000000000000",
-        "sellVolumeBNB": "600000000000000000",
-        "buysCount": "35",
-        "sellsCount": "8",
-        "openRaisedBNB": "1000000000000000000",
-        "closeRaisedBNB": "5200000000000000000"
-      },
-      {
-        "periodStart": "1700082000",
-        "volumeBNB": "2100000000000000000",
-        "buyVolumeBNB": "2100000000000000000",
-        "sellVolumeBNB": "0",
-        "buysCount": "21",
-        "sellsCount": "0",
-        "openRaisedBNB": "0",
-        "closeRaisedBNB": "1000000000000000000"
-      }
-    ]
-  }
-}
-```
-
----
-
-## OneCoinLocker
-
-The `OneCoinLocker` indexes token locks created through `1CoinLocker.sol`. Each lock has an owner, a token, a cliff or linear vesting schedule, and a withdrawal/transfer history.
 
 ### All locks — newest first
 
@@ -3357,7 +1709,6 @@ The `OneCoinLocker` indexes token locks created through `1CoinLocker.sol`. Each 
   locks(orderBy: createdAtTimestamp, orderDirection: desc, first: 20) {
     id
     lockId
-    locker { id fee }
     owner
     token
     amount
@@ -3382,24 +1733,50 @@ The `OneCoinLocker` indexes token locks created through `1CoinLocker.sol`. Each 
   "data": {
     "locks": [
       {
-        "id": "0x6c6e9740753d9f6c1e5d61c8bc0f34e37590f6c500000000000000000000000000000000001",
-        "lockId": "1",
-        "locker": { "id": "0x6c6e9740753d9f6c1e5d61c8bc0f34e37590f6c5", "fee": "10000000000000000" },
+        "id": "0x6c6e9740753d9f6c1e5d61c8bc0f34e37590f6c500000054",
+        "lockId": "84",
         "owner": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "token": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-        "amount": "100000000000000000000000000",
+        "token": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
+        "amount": "1000000000000000000000000",
         "withdrawn": "0",
         "lockDate": "1700086400",
         "startTime": "0",
         "endTime": "1731622400",
         "lockType": "Cliff",
-        "isLP": false,
-        "description": "Team tokens",
+        "isLP": true,
+        "description": "PepeMoon LP Lock",
         "renounced": false,
         "createdAtTimestamp": "1700086400",
-        "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+        "txHash": "0xlock1234lock1234lock1234lock1234lock1234lock1234lock1234lock1234"
       }
     ]
+  }
+}
+```
+
+### Locks by owner
+
+```graphql
+{
+  locks(
+    where: { owner: "0xWALLET" }
+    orderBy: endTime
+    orderDirection: desc
+  ) {
+    id
+    lockId
+    token
+    amount
+    withdrawn
+    lockDate
+    startTime
+    endTime
+    lockType
+    isLP
+    description
+    renounced
+    createdAtTimestamp
+    txHash
   }
 }
 ```
@@ -3408,16 +1785,13 @@ The `OneCoinLocker` indexes token locks created through `1CoinLocker.sol`. Each 
 
 ```graphql
 {
-  locks(
-    where: { token: "0xTOKEN_ADDRESS" }
-    orderBy: createdAtTimestamp
-    orderDirection: desc
-  ) {
+  locks(where: { token: "0xTOKEN" }) {
+    id
     lockId
     owner
     amount
     withdrawn
-    lockDate
+    startTime
     endTime
     lockType
     isLP
@@ -3427,80 +1801,15 @@ The `OneCoinLocker` indexes token locks created through `1CoinLocker.sol`. Each 
 }
 ```
 
-**Example response:**
-
-```json
-{
-  "data": {
-    "locks": [
-      {
-        "lockId": "1",
-        "owner": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "amount": "100000000000000000000000000",
-        "withdrawn": "0",
-        "lockDate": "1700086400",
-        "endTime": "1731622400",
-        "lockType": "Cliff",
-        "isLP": false,
-        "renounced": false,
-        "createdAtTimestamp": "1700086400"
-      }
-    ]
-  }
-}
-```
-
-### Active locks held by a wallet
+### Active LP locks (not renounced, not fully withdrawn)
 
 ```graphql
 {
   locks(
-    where: { owner: "0xWALLET_ADDRESS", renounced: false }
+    where: { isLP: true, renounced: false }
     orderBy: endTime
-    orderDirection: asc
-  ) {
-    lockId
-    token
-    amount
-    withdrawn
-    lockDate
-    endTime
-    lockType
-    isLP
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "locks": [
-      {
-        "lockId": "1",
-        "token": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-        "amount": "100000000000000000000000000",
-        "withdrawn": "0",
-        "lockDate": "1700086400",
-        "endTime": "1731622400",
-        "lockType": "Cliff",
-        "isLP": false
-      }
-    ]
-  }
-}
-```
-
-### LP locks only
-
-```graphql
-{
-  locks(
-    where: { isLP: true }
-    orderBy: createdAtTimestamp
     orderDirection: desc
-    first: 20
+    first: 50
   ) {
     lockId
     owner
@@ -3508,46 +1817,32 @@ The `OneCoinLocker` indexes token locks created through `1CoinLocker.sol`. Each 
     amount
     withdrawn
     endTime
-    renounced
+    lockType
+    description
     createdAtTimestamp
   }
 }
 ```
 
-**Example response:**
-
-```json
-{
-  "data": {
-    "locks": [
-      {
-        "lockId": "5",
-        "owner": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
-        "token": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
-        "amount": "50000000000000000",
-        "withdrawn": "0",
-        "endTime": "1763158400",
-        "renounced": false,
-        "createdAtTimestamp": "1700172800"
-      }
-    ]
-  }
-}
-```
-
-### Lock with withdrawal history
+### Lock with full withdrawal and transfer history
 
 ```graphql
 {
-  lock(id: "0xLOCK_ENTITY_ID") {
+  lock(id: "0xLOCKER_ADDR_CONCATTED_LOCKID") {
     lockId
     owner
     token
     amount
     withdrawn
+    startTime
     endTime
     lockType
+    isLP
+    renounced
+    description
+    createdAtTimestamp
     withdrawals(orderBy: timestamp, orderDirection: desc) {
+      owner
       amount
       nativeFee
       timestamp
@@ -3569,18 +1864,24 @@ The `OneCoinLocker` indexes token locks created through `1CoinLocker.sol`. Each 
 {
   "data": {
     "lock": {
-      "lockId": "1",
+      "lockId": "84",
       "owner": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-      "token": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-      "amount": "100000000000000000000000000",
-      "withdrawn": "20000000000000000000000000",
+      "token": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
+      "amount": "1000000000000000000000000",
+      "withdrawn": "200000000000000000000000",
+      "startTime": "1700086400",
       "endTime": "1731622400",
       "lockType": "Linear",
+      "isLP": false,
+      "renounced": false,
+      "description": "Team vesting",
+      "createdAtTimestamp": "1700086400",
       "withdrawals": [
         {
-          "amount": "20000000000000000000000000",
-          "nativeFee": "10000000000000000",
-          "timestamp": "1715000000",
+          "owner": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+          "amount": "200000000000000000000000",
+          "nativeFee": "1000000000000000",
+          "timestamp": "1700500000",
           "txHash": "0xwith1234with1234with1234with1234with1234with1234with1234with1234"
         }
       ],
@@ -3590,72 +1891,37 @@ The `OneCoinLocker` indexes token locks created through `1CoinLocker.sol`. Each 
 }
 ```
 
-### Locker contract state
+### Renounced locks
 
 ```graphql
 {
-  lockers {
-    id
-    totalLocks
-    activeLocks
-    fee
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "lockers": [
-      {
-        "id": "0x6c6e9740753d9f6c1e5d61c8bc0f34e37590f6c5",
-        "totalLocks": "42",
-        "activeLocks": "38",
-        "fee": "10000000000000000"
-      }
-    ]
+  locks(
+    where: { renounced: true }
+    orderBy: createdAtTimestamp
+    orderDirection: desc
+  ) {
+    lockId
+    token
+    amount
+    endTime
+    createdAtTimestamp
+    txHash
   }
 }
 ```
 
 ---
 
-## Spark
+## 12. Spark Launcher
 
-The Spark system lets anyone launch an ownerless ERC-20 token with a permanent Uniswap V3 full-range LP position locked inside SparkLocker. Swap fees accrue to the LP NFT and can be claimed and split between the creator, platform, and charity.
-
-### All launched tokens — newest first
+### Launcher fee state
 
 ```graphql
 {
-  sparkLaunchedTokens(orderBy: createdAtTimestamp, orderDirection: desc, first: 20) {
+  sparkLauncherStates {
     id
-    name
-    symbol
-    metaURI
-    creator
-    factory
-    positionManager
-    quoteToken
-    feeWallet
-    pool
-    token0
-    token1
-    tokenId
-    claimCount
-    totalCreatorFees0
-    totalCreatorFees1
-    totalPlatformFees0
-    totalPlatformFees1
-    totalCharityFees0
-    totalCharityFees1
-    tradeCount
-    totalVolumeToken
-    totalVolumeQuote
-    createdAtTimestamp
-    txHash
+    launchFee
+    launchFeeWallet
   }
 }
 ```
@@ -3665,81 +1931,28 @@ The Spark system lets anyone launch an ownerless ERC-20 token with a permanent U
 ```json
 {
   "data": {
-    "sparkLaunchedTokens": [
+    "sparkLauncherStates": [
       {
-        "id": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
-        "name": "SparkPepe",
-        "symbol": "SPPE",
-        "metaURI": "ipfs://QmSparkPepeMetaXYZ",
-        "creator": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "factory": "0x1f98431c8ad98523631ae4a59f267346ea31f984",
-        "positionManager": "0xc36442b4a4522e871399cd717abdd847ab11fe88",
-        "quoteToken": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-        "feeWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "pool": "0x1234abcd1234abcd1234abcd1234abcd1234abcd",
-        "token0": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
-        "token1": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-        "tokenId": "12345",
-        "claimCount": "3",
-        "totalCreatorFees0": "450000000000000000",
-        "totalCreatorFees1": "900000000000000000",
-        "totalPlatformFees0": "160000000000000000",
-        "totalPlatformFees1": "320000000000000000",
-        "totalCharityFees0": "32000000000000000",
-        "totalCharityFees1": "64000000000000000",
-        "tradeCount": "247",
-        "totalVolumeToken": "48200000000000000000000000",
-        "totalVolumeQuote": "9640000000000000000",
-        "createdAtTimestamp": "1700086400",
-        "txHash": "0xlaun1234laun1234laun1234laun1234laun1234laun1234laun1234laun1234"
+        "id": "0xa7305c2bf7669cdd78bc76514a0238cbf2291d70",
+        "launchFee": "100000000000000000",
+        "launchFeeWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4"
       }
     ]
   }
 }
 ```
 
-### Single Spark token — full detail with fee claims
+### Registered DEXes
 
 ```graphql
 {
-  sparkLaunchedToken(id: "0xTOKEN_ADDRESS") {
+  sparkDexes {
     id
-    name
-    symbol
-    metaURI
-    creator
-    factory
     positionManager
-    quoteToken
-    feeWallet
-    pool
-    token0
-    token1
-    tokenId
-    claimCount
-    totalCreatorFees0
-    totalCreatorFees1
-    totalPlatformFees0
-    totalPlatformFees1
-    totalCharityFees0
-    totalCharityFees1
-    createdAtTimestamp
-    txHash
-    tradeCount
-    totalVolumeToken
-    totalVolumeQuote
-    feeClaims(orderBy: timestamp, orderDirection: desc, first: 20) {
-      id
-      feeWallet
-      creator0
-      creator1
-      platform0
-      platform1
-      charity0
-      charity1
-      timestamp
-      txHash
-    }
+    router
+    enabled
+    addedAtTimestamp
+    addedAtBlockNumber
   }
 }
 ```
@@ -3749,109 +1962,29 @@ The Spark system lets anyone launch an ownerless ERC-20 token with a permanent U
 ```json
 {
   "data": {
-    "sparkLaunchedToken": {
-      "id": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
-      "name": "SparkPepe",
-      "symbol": "SPPE",
-      "metaURI": "ipfs://QmSparkPepeMetaXYZ",
-      "creator": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-      "factory": "0x1f98431c8ad98523631ae4a59f267346ea31f984",
-      "positionManager": "0xc36442b4a4522e871399cd717abdd847ab11fe88",
-      "quoteToken": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-      "feeWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-      "pool": "0x1234abcd1234abcd1234abcd1234abcd1234abcd",
-      "token0": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
-      "token1": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-      "tokenId": "12345",
-      "claimCount": "3",
-      "totalCreatorFees0": "450000000000000000",
-      "totalCreatorFees1": "900000000000000000",
-      "totalPlatformFees0": "160000000000000000",
-      "totalPlatformFees1": "320000000000000000",
-      "totalCharityFees0": "32000000000000000",
-      "totalCharityFees1": "64000000000000000",
-      "createdAtTimestamp": "1700086400",
-      "txHash": "0xlaun1234laun1234laun1234laun1234laun1234laun1234laun1234laun1234",
-      "feeClaims": [
-        {
-          "id": "0xclaim111claim111claim111claim111claim111claim111claim111claim11100",
-          "feeWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-          "creator0": "150000000000000000",
-          "creator1": "300000000000000000",
-          "platform0": "53000000000000000",
-          "platform1": "107000000000000000",
-          "charity0": "10000000000000000",
-          "charity1": "21000000000000000",
-          "timestamp": "1700200000",
-          "txHash": "0xclaim111claim111claim111claim111claim111claim111claim111claim111"
-        }
-      ]
-    }
-  }
-}
-```
-
-### Tokens launched by a specific creator
-
-```graphql
-{
-  sparkLaunchedTokens(
-    where: { creator: "0xCREATOR_ADDRESS" }
-    orderBy: createdAtTimestamp
-    orderDirection: desc
-  ) {
-    id
-    name
-    symbol
-    quoteToken
-    pool
-    claimCount
-    totalCreatorFees0
-    totalCreatorFees1
-    createdAtTimestamp
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "sparkLaunchedTokens": [
+    "sparkDexes": [
       {
-        "id": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
-        "name": "SparkPepe",
-        "symbol": "SPPE",
-        "quoteToken": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-        "pool": "0x1234abcd1234abcd1234abcd1234abcd1234abcd",
-        "claimCount": "3",
-        "totalCreatorFees0": "450000000000000000",
-        "totalCreatorFees1": "900000000000000000",
-        "createdAtTimestamp": "1700086400"
+        "id": "0x0bfbcf9fa4f9c56b0f40a671ad40e0805a091865",
+        "positionManager": "0x7b8a01b39d58278b5de7e48c8449c9f4f5170613",
+        "router": "0x1b81d678ffb9c0263b24a97847620c99d213eb14",
+        "enabled": true,
+        "addedAtTimestamp": "1699950000",
+        "addedAtBlockNumber": "38100000"
       }
     ]
   }
 }
 ```
 
-### All fee claims — newest first
+### Enabled quote tokens
 
 ```graphql
 {
-  sparkFeeClaims(orderBy: timestamp, orderDirection: desc, first: 50) {
+  sparkQuoteTokens(where: { enabled: true }) {
     id
-    token { id name symbol }
-    feeWallet
-    creator0
-    creator1
-    platform0
-    platform1
-    charity0
-    charity1
-    timestamp
-    blockNumber
-    txHash
+    isNative
+    marketCapRef
+    wethPairFee
   }
 }
 ```
@@ -3861,24 +1994,18 @@ The Spark system lets anyone launch an ownerless ERC-20 token with a permanent U
 ```json
 {
   "data": {
-    "sparkFeeClaims": [
+    "sparkQuoteTokens": [
       {
-        "id": "0xclaim111claim111claim111claim111claim111claim111claim111claim11100",
-        "token": {
-          "id": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
-          "name": "SparkPepe",
-          "symbol": "SPPE"
-        },
-        "feeWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "creator0": "150000000000000000",
-        "creator1": "300000000000000000",
-        "platform0": "53000000000000000",
-        "platform1": "107000000000000000",
-        "charity0": "10000000000000000",
-        "charity1": "21000000000000000",
-        "timestamp": "1700200000",
-        "blockNumber": "38160000",
-        "txHash": "0xclaim111claim111claim111claim111claim111claim111claim111claim111"
+        "id": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+        "isNative": true,
+        "marketCapRef": "5000000000000000000",
+        "wethPairFee": 0
+      },
+      {
+        "id": "0x55d398326f99059ff775485246999027b3197955",
+        "isNative": false,
+        "marketCapRef": "5000000000000000000",
+        "wethPairFee": 500
       }
     ]
   }
@@ -3909,11 +2036,11 @@ The Spark system lets anyone launch an ownerless ERC-20 token with a permanent U
   "data": {
     "sparkLockerStates": [
       {
-        "id": "0xbbbb2222bbbb2222bbbb2222bbbb2222bbbb2222",
-        "owner": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "launcher": "0xcccc3333cccc3333cccc3333cccc3333cccc3333",
-        "platformWallet": "0x1111222233334444111122223333444411112222",
-        "charityWallet": "0x5555666677778888555566667777888855556666",
+        "id": "0x440be9bb601688cfbd088da287d5248d31630293",
+        "owner": "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+        "launcher": "0xa7305c2bf7669cdd78bc76514a0238cbf2291d70",
+        "platformWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "charityWallet": "0xaaabbbcccdddeeefffaaabbbcccdddeeefffaaab",
         "creatorBps": "7000",
         "platformBps": "2500",
         "charityBps": "500"
@@ -3923,48 +2050,156 @@ The Spark system lets anyone launch an ownerless ERC-20 token with a permanent U
 }
 ```
 
-### Registered DEXes on SparkLauncher
+---
+
+## 13. Spark Tokens
+
+### All Spark tokens — newest first
 
 ```graphql
 {
-  sparkDexes(where: { enabled: true }) {
+  sparkLaunchedTokens(orderBy: createdAtTimestamp, orderDirection: desc, first: 20) {
     id
+    name
+    symbol
+    metaURI
+    creator
+    quoteToken
+    pool
+    tokenId
+    token0
+    token1
+    tradeCount
+    totalVolumeToken
+    totalVolumeQuote
+    claimCount
+    lpWithdrawn
+    createdAtTimestamp
+    txHash
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "sparkLaunchedTokens": [
+      {
+        "id": "0xaabb1234aabb1234aabb1234aabb1234aabb1234",
+        "name": "SparkDoge",
+        "symbol": "SDOGE",
+        "metaURI": "ipfs://QmSparkDogeMetaXYZ",
+        "creator": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "quoteToken": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+        "pool": "0xpool1234pool1234pool1234pool1234pool1234",
+        "tokenId": "112233",
+        "token0": "0xaabb1234aabb1234aabb1234aabb1234aabb1234",
+        "token1": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+        "tradeCount": "47",
+        "totalVolumeToken": "890000000000000000000000000",
+        "totalVolumeQuote": "4200000000000000000",
+        "claimCount": "1",
+        "lpWithdrawn": false,
+        "createdAtTimestamp": "1700100000",
+        "txHash": "0xspark123spark123spark123spark123spark123spark123spark123spark123"
+      }
+    ]
+  }
+}
+```
+
+### Single Spark token — full detail with cumulative fees
+
+```graphql
+{
+  sparkLaunchedToken(id: "0xTOKEN") {
+    id
+    name
+    symbol
+    metaURI
+    creator
+    factory
     positionManager
-    router
-    enabled
-    addedAtTimestamp
+    quoteToken
+    feeWallet
+    pool
+    token0
+    token1
+    tokenId
+    lpWithdrawn
+    totalCreatorFees0
+    totalCreatorFees1
+    totalPlatformFees0
+    totalPlatformFees1
+    totalCharityFees0
+    totalCharityFees1
+    claimCount
+    tradeCount
+    totalVolumeToken
+    totalVolumeQuote
+    createdAtTimestamp
+    createdAtBlockNumber
+    txHash
   }
 }
 ```
 
-**Example response:**
-
-```json
-{
-  "data": {
-    "sparkDexes": [
-      {
-        "id": "0x1f98431c8ad98523631ae4a59f267346ea31f984",
-        "positionManager": "0xc36442b4a4522e871399cd717abdd847ab11fe88",
-        "router": "0xe592427a0aece92de3edee1f18e0157c05861564",
-        "enabled": true,
-        "addedAtTimestamp": "1700000000"
-      }
-    ]
-  }
-}
-```
-
-### Accepted quote tokens
+### Spark tokens by creator
 
 ```graphql
 {
-  sparkQuoteTokens(where: { enabled: true }) {
+  sparkLaunchedTokens(
+    where: { creator: "0xWALLET" }
+    orderBy: createdAtTimestamp
+    orderDirection: desc
+  ) {
     id
-    wethPairFee
-    enabled
-    isNative
-    marketCapRef
+    name
+    symbol
+    quoteToken
+    pool
+    tradeCount
+    totalVolumeQuote
+    claimCount
+    createdAtTimestamp
+  }
+}
+```
+
+### Most-traded Spark tokens
+
+```graphql
+{
+  sparkLaunchedTokens(orderBy: tradeCount, orderDirection: desc, first: 10) {
+    id
+    name
+    symbol
+    tradeCount
+    totalVolumeToken
+    totalVolumeQuote
+    claimCount
+    createdAtTimestamp
+  }
+}
+```
+
+### Pool lookup — resolve token from pool address
+
+```graphql
+{
+  sparkPool(id: "0xPOOL") {
+    sparkIsToken0
+    token {
+      id
+      name
+      symbol
+      creator
+      quoteToken
+      tradeCount
+      totalVolumeQuote
+    }
   }
 }
 ```
@@ -3974,67 +2209,29 @@ The Spark system lets anyone launch an ownerless ERC-20 token with a permanent U
 ```json
 {
   "data": {
-    "sparkQuoteTokens": [
-      {
-        "id": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-        "wethPairFee": 0,
-        "enabled": true,
-        "isNative": true,
-        "marketCapRef": "5000000000000000000"
-      },
-      {
-        "id": "0x55d398326f99059ff775485246999027b3197955",
-        "wethPairFee": 3000,
-        "enabled": true,
-        "isNative": false,
-        "marketCapRef": "5000000000000000000"
+    "sparkPool": {
+      "sparkIsToken0": true,
+      "token": {
+        "id": "0xaabb1234aabb1234aabb1234aabb1234aabb1234",
+        "name": "SparkDoge",
+        "symbol": "SDOGE",
+        "creator": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "quoteToken": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+        "tradeCount": "47",
+        "totalVolumeQuote": "4200000000000000000"
       }
-    ]
+    }
   }
 }
 ```
 
 ---
 
-## Spark Launcher State
+## 14. Spark Trades
 
-The `SparkLauncherState` entity is a singleton (keyed by the SparkLauncher contract address) that tracks the global launch fee and fee wallet, which apply to all quote tokens uniformly.
+Spark trades are Uniswap V3 pool `Swap` events. `sparkAmount` and `quoteAmount` are absolute (unsigned) values. `isBuy = true` means the Spark token left the pool (user received it).
 
-### Launcher global config
-
-```graphql
-{
-  sparkLauncherStates {
-    id
-    launchFee
-    launchFeeWallet
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "sparkLauncherStates": [
-      {
-        "id": "0xa7305c2bf7669cdd78bc76514a0238cbf2291d70",
-        "launchFee": "500000000000000",
-        "launchFeeWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4"
-      }
-    ]
-  }
-}
-```
-
----
-
-## Spark Trades
-
-Each `SparkTrade` is one Uniswap V3 `Swap` event on a Spark token's pool. `isBuy = true` means the Spark token left the pool (someone bought it); `isBuy = false` means it entered (someone sold it). `sparkAmount` and `quoteAmount` are the absolute token amounts involved.
-
-### Recent trades across all Spark tokens
+### Recent Spark trades across all tokens
 
 ```graphql
 {
@@ -4063,35 +2260,35 @@ Each `SparkTrade` is one Uniswap V3 `Swap` event on a Spark token's pool. `isBuy
   "data": {
     "sparkTrades": [
       {
-        "id": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd12340000",
+        "id": "0xswap1234swap1234swap1234swap1234swap1234swap1234swap1234swap12340000",
         "token": {
-          "id": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
-          "name": "SparkPepe",
-          "symbol": "SPPE"
+          "id": "0xaabb1234aabb1234aabb1234aabb1234aabb1234",
+          "name": "SparkDoge",
+          "symbol": "SDOGE"
         },
-        "pool": "0x1234abcd1234abcd1234abcd1234abcd1234abcd",
+        "pool": "0xpool1234pool1234pool1234pool1234pool1234",
         "sender": "0xccddee001122ccddee001122ccddee001122ccdd",
         "recipient": "0xccddee001122ccddee001122ccddee001122ccdd",
         "isBuy": true,
-        "sparkAmount": "4850000000000000000000000",
-        "quoteAmount": "200000000000000000",
+        "sparkAmount": "18900000000000000000000000",
+        "quoteAmount": "89000000000000000",
         "sqrtPriceX96": "7922816251426433759354395033600",
-        "tick": "-207243",
-        "timestamp": "1700086500",
-        "blockNumber": "38120050",
-        "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+        "tick": "-92000",
+        "timestamp": "1700100100",
+        "blockNumber": "38125000",
+        "txHash": "0xswap1234swap1234swap1234swap1234swap1234swap1234swap1234swap1234"
       }
     ]
   }
 }
 ```
 
-### Trades for a specific Spark token
+### Trades on a specific Spark token
 
 ```graphql
 {
   sparkTrades(
-    where: { token: "0xTOKEN_ADDRESS" }
+    where: { token: "0xTOKEN" }
     orderBy: timestamp
     orderDirection: desc
     first: 100
@@ -4104,43 +2301,23 @@ Each `SparkTrade` is one Uniswap V3 `Swap` event on a Spark token's pool. `isBuy
     sqrtPriceX96
     tick
     timestamp
+    blockNumber
     txHash
   }
 }
 ```
 
-**Example response:**
-
-```json
-{
-  "data": {
-    "sparkTrades": [
-      {
-        "isBuy": true,
-        "sender": "0xccddee001122ccddee001122ccddee001122ccdd",
-        "recipient": "0xccddee001122ccddee001122ccddee001122ccdd",
-        "sparkAmount": "4850000000000000000000000",
-        "quoteAmount": "200000000000000000",
-        "sqrtPriceX96": "7922816251426433759354395033600",
-        "tick": "-207243",
-        "timestamp": "1700086500",
-        "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
-      }
-    ]
-  }
-}
-```
-
-### Buys only for a Spark token
+### Buys only on a specific Spark token
 
 ```graphql
 {
   sparkTrades(
-    where: { token: "0xTOKEN_ADDRESS", isBuy: true }
-    orderBy: timestamp
+    where: { token: "0xTOKEN", isBuy: true }
+    orderBy: quoteAmount
     orderDirection: desc
-    first: 50
+    first: 20
   ) {
+    sender
     recipient
     sparkAmount
     quoteAmount
@@ -4150,168 +2327,19 @@ Each `SparkTrade` is one Uniswap V3 `Swap` event on a Spark token's pool. `isBuy
 }
 ```
 
-**Example response:**
-
-```json
-{
-  "data": {
-    "sparkTrades": [
-      {
-        "recipient": "0xccddee001122ccddee001122ccddee001122ccdd",
-        "sparkAmount": "4850000000000000000000000",
-        "quoteAmount": "200000000000000000",
-        "timestamp": "1700086500",
-        "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
-      }
-    ]
-  }
-}
-```
-
-### Sells only for a Spark token
+### Largest Spark trades by quote amount
 
 ```graphql
 {
   sparkTrades(
-    where: { token: "0xTOKEN_ADDRESS", isBuy: false }
-    orderBy: timestamp
-    orderDirection: desc
-    first: 50
-  ) {
-    sender
-    sparkAmount
-    quoteAmount
-    timestamp
-    txHash
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "sparkTrades": [
-      {
-        "sender": "0x1234567890abcdef1234567890abcdef12345678",
-        "sparkAmount": "2400000000000000000000000",
-        "quoteAmount": "95000000000000000",
-        "timestamp": "1700086400",
-        "txHash": "0xbeef5678beef5678beef5678beef5678beef5678beef5678beef5678beef5678"
-      }
-    ]
-  }
-}
-```
-
-### Spark token with trade history and volume stats
-
-```graphql
-{
-  sparkLaunchedToken(id: "0xTOKEN_ADDRESS") {
-    id
-    name
-    symbol
-    pool
-    quoteToken
-    tradeCount
-    totalVolumeToken
-    totalVolumeQuote
-    trades(orderBy: timestamp, orderDirection: desc, first: 50) {
-      isBuy
-      sparkAmount
-      quoteAmount
-      recipient
-      timestamp
-      txHash
-    }
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "sparkLaunchedToken": {
-      "id": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
-      "name": "SparkPepe",
-      "symbol": "SPPE",
-      "pool": "0x1234abcd1234abcd1234abcd1234abcd1234abcd",
-      "quoteToken": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-      "tradeCount": "247",
-      "totalVolumeToken": "48200000000000000000000000",
-      "totalVolumeQuote": "9640000000000000000",
-      "trades": [
-        {
-          "isBuy": true,
-          "sparkAmount": "4850000000000000000000000",
-          "quoteAmount": "200000000000000000",
-          "recipient": "0xccddee001122ccddee001122ccddee001122ccdd",
-          "timestamp": "1700086500",
-          "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
-        }
-      ]
-    }
-  }
-}
-```
-
-### Most active Spark tokens by trade count
-
-```graphql
-{
-  sparkLaunchedTokens(
-    orderBy: tradeCount
+    orderBy: quoteAmount
     orderDirection: desc
     first: 20
   ) {
-    id
-    name
-    symbol
-    tradeCount
-    totalVolumeToken
-    totalVolumeQuote
-    quoteToken
-    createdAtTimestamp
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "sparkLaunchedTokens": [
-      {
-        "id": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
-        "name": "SparkPepe",
-        "symbol": "SPPE",
-        "tradeCount": "247",
-        "totalVolumeToken": "48200000000000000000000000",
-        "totalVolumeQuote": "9640000000000000000",
-        "quoteToken": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-        "createdAtTimestamp": "1700086400"
-      }
-    ]
-  }
-}
-```
-
-### Trades by a specific wallet across all Spark tokens
-
-```graphql
-{
-  sparkTrades(
-    where: { recipient: "0xWALLET_ADDRESS", isBuy: true }
-    orderBy: timestamp
-    orderDirection: desc
-    first: 50
-  ) {
     token { id name symbol }
+    isBuy
+    sender
+    recipient
     sparkAmount
     quoteAmount
     timestamp
@@ -4320,47 +2348,142 @@ Each `SparkTrade` is one Uniswap V3 `Swap` event on a Spark token's pool. `isBuy
 }
 ```
 
-**Example response:**
+### Trades by a specific wallet
 
-```json
+```graphql
 {
-  "data": {
-    "sparkTrades": [
-      {
-        "token": {
-          "id": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
-          "name": "SparkPepe",
-          "symbol": "SPPE"
-        },
-        "sparkAmount": "4850000000000000000000000",
-        "quoteAmount": "200000000000000000",
-        "timestamp": "1700086500",
-        "txHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
-      }
-    ]
+  sparkTrades(
+    where: { sender: "0xWALLET" }
+    orderBy: timestamp
+    orderDirection: desc
+  ) {
+    token { id name symbol }
+    isBuy
+    sparkAmount
+    quoteAmount
+    timestamp
+    txHash
   }
 }
 ```
 
 ---
 
-## Spark Holders
+## 15. Spark Fee Claims
 
-`SparkHolder` tracks the live ERC-20 balance of every address that has received a Spark token via `Transfer` events. Balances update on every transfer — buys, sells, and wallet-to-wallet moves.
+Fee claims record each time LP swap fees are collected and split between creator, platform, and charity. `token0`/`token1` correspond to the V3 pool's sorted token addresses — check `SparkLaunchedToken.token0` to map amounts to the correct asset.
 
-`id` = token address concatenated with holder address (40 bytes total).
+### All fee claims — newest first
 
-### All holders of a Spark token — sorted by balance
+```graphql
+{
+  sparkFeeClaims(orderBy: timestamp, orderDirection: desc, first: 50) {
+    id
+    token { id name symbol }
+    feeWallet
+    creator0
+    creator1
+    platform0
+    platform1
+    charity0
+    charity1
+    timestamp
+    blockNumber
+    txHash
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "sparkFeeClaims": [
+      {
+        "id": "0xfees123fees123fees123fees123fees123fees123fees123fees123fees1230000",
+        "token": {
+          "id": "0xaabb1234aabb1234aabb1234aabb1234aabb1234",
+          "name": "SparkDoge",
+          "symbol": "SDOGE"
+        },
+        "feeWallet": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "creator0": "700000000000000000",
+        "creator1": "350000000000000000000000000",
+        "platform0": "250000000000000000",
+        "platform1": "125000000000000000000000000",
+        "charity0": "50000000000000000",
+        "charity1": "25000000000000000000000000",
+        "timestamp": "1700200000",
+        "blockNumber": "38160000",
+        "txHash": "0xfees123fees123fees123fees123fees123fees123fees123fees123fees123"
+      }
+    ]
+  }
+}
+```
+
+### Fee claims for a specific Spark token
+
+```graphql
+{
+  sparkFeeClaims(
+    where: { token: "0xTOKEN" }
+    orderBy: timestamp
+    orderDirection: desc
+  ) {
+    feeWallet
+    creator0
+    creator1
+    platform0
+    platform1
+    charity0
+    charity1
+    timestamp
+    txHash
+  }
+}
+```
+
+### Fee claims for a specific fee wallet
+
+```graphql
+{
+  sparkFeeClaims(
+    where: { feeWallet: "0xWALLET" }
+    orderBy: timestamp
+    orderDirection: desc
+    first: 50
+  ) {
+    token { id name symbol }
+    creator0
+    creator1
+    platform0
+    platform1
+    charity0
+    charity1
+    timestamp
+    txHash
+  }
+}
+```
+
+---
+
+## 16. Spark Holders
+
+Spark holder balances are tracked via ERC-20 `Transfer` events. Unlike bonding-curve holders, tracking continues indefinitely after the token is launched.
+
+### Top holders for a Spark token
 
 ```graphql
 {
   sparkHolders(
-    where: { token: "0xTOKEN_ADDRESS" }
+    where: { token: "0xTOKEN" }
     orderBy: balance
     orderDirection: desc
-    first: 100
+    first: 50
   ) {
-    id
     address
     balance
     lastUpdatedBlock
@@ -4376,56 +2499,16 @@ Each `SparkTrade` is one Uniswap V3 `Swap` event on a Spark token's pool. `isBuy
   "data": {
     "sparkHolders": [
       {
-        "id": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111f1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
         "address": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "balance": "50000000000000000000000000",
-        "lastUpdatedBlock": "38120050",
-        "lastUpdatedTimestamp": "1700086500"
-      },
-      {
-        "id": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111ccddee001122ccddee001122ccddee001122ccdd",
-        "address": "0xccddee001122ccddee001122ccddee001122ccdd",
-        "balance": "4850000000000000000000000",
-        "lastUpdatedBlock": "38120050",
-        "lastUpdatedTimestamp": "1700086500"
-      }
-    ]
-  }
-}
-```
-
-### Top 10 holders (whale list)
-
-```graphql
-{
-  sparkHolders(
-    where: { token: "0xTOKEN_ADDRESS" }
-    orderBy: balance
-    orderDirection: desc
-    first: 10
-  ) {
-    address
-    balance
-    lastUpdatedBlock
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "sparkHolders": [
-      {
-        "address": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "balance": "50000000000000000000000000",
-        "lastUpdatedBlock": "38120050"
+        "balance": "120000000000000000000000000",
+        "lastUpdatedBlock": "38125000",
+        "lastUpdatedTimestamp": "1700100100"
       },
       {
         "address": "0xccddee001122ccddee001122ccddee001122ccdd",
-        "balance": "4850000000000000000000000",
-        "lastUpdatedBlock": "38120050"
+        "balance": "48000000000000000000000000",
+        "lastUpdatedBlock": "38124900",
+        "lastUpdatedTimestamp": "1700099800"
       }
     ]
   }
@@ -4437,11 +2520,11 @@ Each `SparkTrade` is one Uniswap V3 `Swap` event on a Spark token's pool. `isBuy
 ```graphql
 {
   sparkHolders(
-    where: { address: "0xWALLET_ADDRESS" }
+    where: { address: "0xWALLET", balance_gt: "0" }
     orderBy: balance
     orderDirection: desc
   ) {
-    token { id name symbol quoteToken }
+    token { id name symbol quoteToken totalVolumeQuote }
     balance
     lastUpdatedBlock
     lastUpdatedTimestamp
@@ -4449,43 +2532,399 @@ Each `SparkTrade` is one Uniswap V3 `Swap` event on a Spark token's pool. `isBuy
 }
 ```
 
-**Example response:**
+---
+
+## 17. Pagination
+
+The Graph limits responses to **1,000 entities per query**. For larger datasets use `id_gt` cursor-based pagination.
+
+### Paginating tokens
+
+```graphql
+# Page 1
+{
+  tokens(orderBy: id, orderDirection: asc, first: 1000) {
+    id
+    name
+    symbol
+    raisedBNB
+    migrated
+    createdAtTimestamp
+  }
+}
+```
+
+```graphql
+# Page 2 — pass the last id from the previous page
+{
+  tokens(
+    orderBy: id
+    orderDirection: asc
+    first: 1000
+    where: { id_gt: "0xLAST_ID_FROM_PREVIOUS_PAGE" }
+  ) {
+    id
+    name
+    symbol
+    raisedBNB
+    migrated
+    createdAtTimestamp
+  }
+}
+```
+
+### Paginating trades
+
+```graphql
+# Page 1
+{
+  trades(orderBy: id, orderDirection: asc, first: 1000) {
+    id
+    token { id }
+    type
+    trader
+    bnbAmount
+    timestamp
+  }
+}
+```
+
+```graphql
+# Page 2
+{
+  trades(
+    orderBy: id
+    orderDirection: asc
+    first: 1000
+    where: { id_gt: "0xLAST_ID_FROM_PREVIOUS_PAGE" }
+  ) {
+    id
+    token { id }
+    type
+    trader
+    bnbAmount
+    timestamp
+  }
+}
+```
+
+### Paginating Spark trades on a specific token
+
+```graphql
+{
+  sparkTrades(
+    where: { token: "0xTOKEN", id_gt: "0xLAST_ID" }
+    orderBy: id
+    orderDirection: asc
+    first: 1000
+  ) {
+    id
+    isBuy
+    sparkAmount
+    quoteAmount
+    timestamp
+  }
+}
+```
+
+---
+
+## 18. Launchpad Charts
+
+These queries are designed for building frontend charts for bonding-curve tokens.  
+All price values are in wei ×1e18 — divide by `1e18` client-side before rendering.
+
+**Guaranteed data from launch:** Every token has its launch-price candle seeded into all five `TokenPeriodStats` windows at creation time, so charts always return at least one data point — even for brand-new tokens with zero trades.
+
+**Client-side gap filling:** The subgraph only stores buckets where activity exists. For empty time windows between trades, carry the previous bucket's `closePrice` forward as `open = high = low = close` with `volumeBNB = 0`. Do this client-side; the subgraph does not store zero-volume phantom buckets.
+
+---
+
+### 18.1 Time-Weighted OHLCV — primary chart source
+
+`TokenPeriodStats` is the primary chart entity. Buckets are fixed-width time windows so prices are naturally time-weighted across the activity in each window. The open price of every bucket is inherited from the price at the start of that window (or from the token's launch price for the very first bucket).
+
+Available periods: `5m`, `45m`, `1h`, `1d`, `7d`.
+
+**5-minute candles (last 100 buckets):**
+
+```graphql
+{
+  tokenPeriodStats(
+    where: { token: "0xTOKEN", period: "5m" }
+    orderBy: periodStart
+    orderDirection: desc
+    first: 100
+  ) {
+    periodStart
+    bucketId
+    openPrice
+    highPrice
+    lowPrice
+    closePrice
+    buyVolumeBNB
+    sellVolumeBNB
+    volumeBNB
+    buysCount
+    sellsCount
+  }
+}
+```
+
+**1-hour candles (last 72 hours):**
+
+```graphql
+{
+  tokenPeriodStats(
+    where: { token: "0xTOKEN", period: "1h" }
+    orderBy: periodStart
+    orderDirection: desc
+    first: 72
+  ) {
+    periodStart
+    openPrice
+    highPrice
+    lowPrice
+    closePrice
+    buyVolumeBNB
+    sellVolumeBNB
+    volumeBNB
+    buysCount
+    sellsCount
+  }
+}
+```
+
+**1-day candles (last 30 days):**
+
+```graphql
+{
+  tokenPeriodStats(
+    where: { token: "0xTOKEN", period: "1d" }
+    orderBy: periodStart
+    orderDirection: desc
+    first: 30
+  ) {
+    periodStart
+    openPrice
+    highPrice
+    lowPrice
+    closePrice
+    buyVolumeBNB
+    sellVolumeBNB
+    volumeBNB
+    buysCount
+    sellsCount
+  }
+}
+```
+
+**Example response (1h candles):**
 
 ```json
 {
   "data": {
-    "sparkHolders": [
+    "tokenPeriodStats": [
       {
-        "token": {
-          "id": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
-          "name": "SparkPepe",
-          "symbol": "SPPE",
-          "quoteToken": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-        },
-        "balance": "50000000000000000000000000",
-        "lastUpdatedBlock": "38120050",
-        "lastUpdatedTimestamp": "1700086500"
+        "periodStart": "1700085600",
+        "openPrice": "1000000000000000",
+        "highPrice": "1350000000000000",
+        "lowPrice": "980000000000000",
+        "closePrice": "1320000000000000",
+        "buyVolumeBNB": "4200000000000000000",
+        "sellVolumeBNB": "800000000000000000",
+        "volumeBNB": "5000000000000000000",
+        "buysCount": "31",
+        "sellsCount": "8"
+      },
+      {
+        "periodStart": "1700082000",
+        "openPrice": "800000000000000",
+        "highPrice": "1020000000000000",
+        "lowPrice": "790000000000000",
+        "closePrice": "1000000000000000",
+        "buyVolumeBNB": "2100000000000000000",
+        "sellVolumeBNB": "300000000000000000",
+        "volumeBNB": "2400000000000000000",
+        "buysCount": "15",
+        "sellsCount": "3"
       }
     ]
   }
 }
 ```
 
-### Spark token with holder list
+**Querying the launch candle for a token with no trades:**
+
+Every token has its launch-price bucket seeded at creation, so this query always returns at least one result:
 
 ```graphql
 {
-  sparkLaunchedToken(id: "0xTOKEN_ADDRESS") {
-    id
-    name
-    symbol
-    tradeCount
-    totalVolumeQuote
-    holders(orderBy: balance, orderDirection: desc, first: 20) {
-      address
-      balance
-      lastUpdatedBlock
+  tokenPeriodStats(
+    where: { token: "0xTOKEN", period: "1h" }
+    orderBy: periodStart
+    orderDirection: asc
+    first: 1
+  ) {
+    periodStart
+    openPrice
+    highPrice
+    lowPrice
+    closePrice
+    volumeBNB
+    buysCount
+    sellsCount
+  }
+}
+```
+
+**Example response (token just created, zero trades):**
+
+```json
+{
+  "data": {
+    "tokenPeriodStats": [
+      {
+        "periodStart": "1700085600",
+        "openPrice": "52631578947368",
+        "highPrice": "52631578947368",
+        "lowPrice": "52631578947368",
+        "closePrice": "52631578947368",
+        "volumeBNB": "0",
+        "buysCount": "0",
+        "sellsCount": "0"
+      }
+    ]
+  }
+}
+```
+
+`openPrice = highPrice = lowPrice = closePrice = launchPrice` with zero volume — this is the seed candle written when the token was created.
+
+---
+
+### 18.2 Per-Block Snapshots — secondary chart source
+
+`TokenSnapshot` records one data point per block that contains at least one trade, plus a genesis snapshot at the token's creation block. Use this for maximum price resolution on active tokens; use `TokenPeriodStats` (18.1) for tokens with sparse trading or when a fixed-interval chart axis is required.
+
+**Recent snapshots (most recent first):**
+
+```graphql
+{
+  tokenSnapshots(
+    where: { token: "0xTOKEN" }
+    orderBy: blockNumber
+    orderDirection: desc
+    first: 500
+  ) {
+    blockNumber
+    timestamp
+    openPrice
+    highPrice
+    lowPrice
+    closePrice
+    openRaisedBNB
+    closeRaisedBNB
+    volumeBNB
+    buyCount
+    sellCount
+  }
+}
+```
+
+**Forward pagination from a known block:**
+
+```graphql
+{
+  tokenSnapshots(
+    where: {
+      token: "0xTOKEN"
+      blockNumber_gt: "38120000"
     }
+    orderBy: blockNumber
+    orderDirection: asc
+    first: 1000
+  ) {
+    blockNumber
+    timestamp
+    openPrice
+    highPrice
+    lowPrice
+    closePrice
+    openRaisedBNB
+    closeRaisedBNB
+    volumeBNB
+    buyCount
+    sellCount
+  }
+}
+```
+
+**Example response (genesis snapshot — no trades yet):**
+
+```json
+{
+  "data": {
+    "tokenSnapshots": [
+      {
+        "blockNumber": "38120000",
+        "timestamp": "1700086400",
+        "openPrice": "52631578947368",
+        "highPrice": "52631578947368",
+        "lowPrice": "52631578947368",
+        "closePrice": "52631578947368",
+        "openRaisedBNB": "0",
+        "closeRaisedBNB": "0",
+        "volumeBNB": "0",
+        "buyCount": 0,
+        "sellCount": 0
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 18.3 Volume Bar Chart
+
+**Hourly volume (buys vs sells separately):**
+
+```graphql
+{
+  tokenPeriodStats(
+    where: { token: "0xTOKEN", period: "1h" }
+    orderBy: periodStart
+    orderDirection: desc
+    first: 48
+  ) {
+    periodStart
+    buyVolumeBNB
+    sellVolumeBNB
+    volumeBNB
+    buysCount
+    sellsCount
+  }
+}
+```
+
+**Daily volume across all tokens (platform-wide):**
+
+```graphql
+{
+  tokenPeriodStats(
+    where: { period: "1d" }
+    orderBy: volumeBNB
+    orderDirection: desc
+    first: 50
+  ) {
+    token { id name symbol }
+    periodStart
+    buyVolumeBNB
+    sellVolumeBNB
+    volumeBNB
+    buysCount
+    sellsCount
   }
 }
 ```
@@ -4495,41 +2934,219 @@ Each `SparkTrade` is one Uniswap V3 `Swap` event on a Spark token's pool. `isBuy
 ```json
 {
   "data": {
-    "sparkLaunchedToken": {
-      "id": "0xaaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
-      "name": "SparkPepe",
-      "symbol": "SPPE",
-      "tradeCount": "247",
-      "totalVolumeQuote": "9640000000000000000",
-      "holders": [
-        {
-          "address": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-          "balance": "50000000000000000000000000",
-          "lastUpdatedBlock": "38120050"
+    "tokenPeriodStats": [
+      {
+        "token": {
+          "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+          "name": "PepeMoon",
+          "symbol": "PPEM"
         },
-        {
-          "address": "0xccddee001122ccddee001122ccddee001122ccdd",
-          "balance": "4850000000000000000000000",
-          "lastUpdatedBlock": "38120050"
-        }
-      ]
+        "periodStart": "1700006400",
+        "buyVolumeBNB": "18000000000000000000",
+        "sellVolumeBNB": "3200000000000000000",
+        "volumeBNB": "21200000000000000000",
+        "buysCount": "142",
+        "sellsCount": "37"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 18.4 Bonding Curve Progress Chart
+
+Track `raisedBNB` over time. Each `TokenSnapshot` records `openRaisedBNB` and `closeRaisedBNB` so you can plot the curve fill level per block.
+
+**Pool depth over time:**
+
+```graphql
+{
+  tokenSnapshots(
+    where: { token: "0xTOKEN" }
+    orderBy: blockNumber
+    orderDirection: asc
+    first: 1000
+  ) {
+    blockNumber
+    timestamp
+    openRaisedBNB
+    closeRaisedBNB
+    volumeBNB
+    buyCount
+    sellCount
+  }
+}
+```
+
+**Current progress snapshot (single query):**
+
+```graphql
+{
+  token(id: "0xTOKEN") {
+    raisedBNB
+    migrationTarget
+    bcTokensPool
+    totalSupply
+    lastKnownPrice
+    buysCount
+    sellsCount
+    totalVolumeBNBBuy
+    totalVolumeBNBSell
+    migrated
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "token": {
+      "raisedBNB": "17500000000000000000",
+      "migrationTarget": "20000000000000000000",
+      "bcTokensPool": "270000000000000000000000000",
+      "totalSupply": "1000000000000000000000000000",
+      "lastKnownPrice": "8700000000000000",
+      "buysCount": "210",
+      "sellsCount": "47",
+      "totalVolumeBNBBuy": "24000000000000000000",
+      "totalVolumeBNBSell": "4800000000000000000",
+      "migrated": false
     }
   }
 }
 ```
 
-### Holders updated in last N blocks
+Client-side progress percentage:
+```
+progress = (raisedBNB / migrationTarget) * 100
+         = (17.5 / 20.0) * 100 = 87.5%
+```
+
+---
+
+### 18.5 Trade Activity Timeline
+
+Plot buy/sell counts and BNB amounts over time to show trade velocity.
+
+**Recent trades with buy/sell breakdown:**
 
 ```graphql
 {
-  sparkHolders(
+  trades(
+    where: { token: "0xTOKEN" }
+    orderBy: timestamp
+    orderDirection: desc
+    first: 200
+  ) {
+    type
+    trader
+    bnbAmount
+    tokenAmount
+    tokensToDead
+    raisedBNBAfter
+    timestamp
+    blockNumber
+  }
+}
+```
+
+**Example response:**
+
+```json
+{
+  "data": {
+    "trades": [
+      {
+        "type": "BUY",
+        "trader": "0xccddee001122ccddee001122ccddee001122ccdd",
+        "bnbAmount": "500000000000000000",
+        "tokenAmount": "4200000000000000000000000",
+        "tokensToDead": "0",
+        "raisedBNBAfter": "17500000000000000000",
+        "timestamp": "1700090000",
+        "blockNumber": "38121000"
+      },
+      {
+        "type": "SELL",
+        "trader": "0x1234567890abcdef1234567890abcdef12345678",
+        "bnbAmount": "120000000000000000",
+        "tokenAmount": "900000000000000000000000",
+        "tokensToDead": "0",
+        "raisedBNBAfter": "17000000000000000000",
+        "timestamp": "1700089500",
+        "blockNumber": "38120900"
+      }
+    ]
+  }
+}
+```
+
+**Buy pressure ratio (buys vs sells) using period stats:**
+
+```graphql
+{
+  tokenPeriodStats(
+    where: { token: "0xTOKEN", period: "1h" }
+    orderBy: periodStart
+    orderDirection: desc
+    first: 24
+  ) {
+    periodStart
+    buysCount
+    sellsCount
+    buyVolumeBNB
+    sellVolumeBNB
+  }
+}
+```
+
+Client-side buy pressure ratio:
+```
+buyPressure = buyVolumeBNB / (buyVolumeBNB + sellVolumeBNB)
+            > 0.5 = net buying, < 0.5 = net selling
+```
+
+---
+
+### 18.6 Holder Growth Chart
+
+Track unique holders over time via the `Holder` entity. Holder records are updated on every `Transfer` while `migrated = false`.
+
+**Current top-20 holders with balance:**
+
+```graphql
+{
+  holders(
+    where: { token: "0xTOKEN", balance_gt: "0" }
+    orderBy: balance
+    orderDirection: desc
+    first: 20
+  ) {
+    address
+    balance
+    lastUpdatedBlock
+    lastUpdatedTimestamp
+  }
+}
+```
+
+**Holders updated after a specific block (new holders since snapshot):**
+
+```graphql
+{
+  holders(
     where: {
-      token: "0xTOKEN_ADDRESS"
-      lastUpdatedBlock_gte: "38120000"
+      token: "0xTOKEN"
+      lastUpdatedBlock_gt: "38120000"
+      balance_gt: "0"
     }
     orderBy: lastUpdatedBlock
-    orderDirection: desc
-    first: 50
+    orderDirection: asc
+    first: 500
   ) {
     address
     balance
@@ -4544,12 +3161,18 @@ Each `SparkTrade` is one Uniswap V3 `Swap` event on a Spark token's pool. `isBuy
 ```json
 {
   "data": {
-    "sparkHolders": [
+    "holders": [
       {
         "address": "0xccddee001122ccddee001122ccddee001122ccdd",
-        "balance": "4850000000000000000000000",
-        "lastUpdatedBlock": "38120050",
-        "lastUpdatedTimestamp": "1700086500"
+        "balance": "25000000000000000000000000",
+        "lastUpdatedBlock": "38121000",
+        "lastUpdatedTimestamp": "1700090000"
+      },
+      {
+        "address": "0x1234567890abcdef1234567890abcdef12345678",
+        "balance": "12000000000000000000000000",
+        "lastUpdatedBlock": "38120900",
+        "lastUpdatedTimestamp": "1700089500"
       }
     ]
   }
@@ -4558,285 +3181,90 @@ Each `SparkTrade` is one Uniswap V3 `Swap` event on a Spark token's pool. `isBuy
 
 ---
 
-## Analytics & combined queries
+### 18.7 Multi-Token Comparison Chart
 
-### Token with full trade, vesting, and migration detail
+Compare multiple tokens' price or volume in one query using the `in` filter.
 
-```graphql
-{
-  token(id: "0xTOKEN_ADDRESS") {
-    name
-    symbol
-    tokenType
-    creator
-    totalSupply
-    raisedBNB
-    migrationTarget
-    migrated
-    pair
-    migrationBNB
-    migrationLiquidityTokens
-    migratedAtTimestamp
-    buysCount
-    sellsCount
-    totalVolumeBNBBuy
-    totalVolumeBNBSell
-    createdAtTimestamp
-    metaUri
-    description
-    image
-    website
-    twitter
-    telegram
-    trades(orderBy: timestamp, orderDirection: desc, first: 50) {
-      type
-      trader
-      bnbAmount
-      tokenAmount
-      tokensToDead
-      raisedBNBAfter
-      timestamp
-      txHash
-    }
-    vestingSchedules {
-      beneficiary
-      amount
-      claimed
-      voided
-      burnedOnVoid
-    }
-    migrations {
-      pair
-      liquidityBNB
-      liquidityTokens
-      timestamp
-      txHash
-    }
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "token": {
-      "name": "ShibaRocket",
-      "symbol": "SHRKT",
-      "tokenType": "STANDARD",
-      "creator": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-      "totalSupply": "1000000000000000000000000000",
-      "raisedBNB": "0",
-      "migrationTarget": "20000000000000000000",
-      "migrated": true,
-      "pair": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
-      "migrationBNB": "20000000000000000000",
-      "migrationLiquidityTokens": "500000000000000000000000000",
-      "migratedAtTimestamp": "1699950000",
-      "buysCount": "312",
-      "sellsCount": "97",
-      "totalVolumeBNBBuy": "32000000000000000000",
-      "totalVolumeBNBSell": "8500000000000000000",
-      "createdAtTimestamp": "1699800000",
-      "metaUri": "ipfs://QmShibaRocketMetaABC",
-      "description": "To the moon on a rocket.",
-      "image": "QmShibaRocketImageABC",
-      "website": "https://shibarocket.io",
-      "twitter": "https://twitter.com/shibarocket",
-      "telegram": null,
-      "trades": [
-        {
-          "type": "BUY",
-          "trader": "0xccddee001122ccddee001122ccddee001122ccdd",
-          "bnbAmount": "500000000000000000",
-          "tokenAmount": "12000000000000000000000000",
-          "tokensToDead": "0",
-          "raisedBNBAfter": "19800000000000000000",
-          "timestamp": "1699949900",
-          "txHash": "0xlast1234last1234last1234last1234last1234last1234last1234last1234"
-        }
-      ],
-      "vestingSchedules": [
-        {
-          "beneficiary": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-          "amount": "50000000000000000000000000",
-          "claimed": "50000000000000000000000000",
-          "voided": false,
-          "burnedOnVoid": null
-        }
-      ],
-      "migrations": [
-        {
-          "pair": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
-          "liquidityBNB": "20000000000000000000",
-          "liquidityTokens": "500000000000000000000000000",
-          "timestamp": "1699950000",
-          "txHash": "0xdead5678dead5678dead5678dead5678dead5678dead5678dead5678dead5678"
-        }
-      ]
-    }
-  }
-}
-```
-
-### Creator portfolio — all tokens with volume stats
+**Current price and volume for a set of tokens:**
 
 ```graphql
 {
   tokens(
-    where: { creator: "0xCREATOR_ADDRESS" }
-    orderBy: totalVolumeBNBBuy
-    orderDirection: desc
+    where: {
+      id_in: [
+        "0xTOKEN_A"
+        "0xTOKEN_B"
+        "0xTOKEN_C"
+      ]
+    }
   ) {
     id
     name
     symbol
-    tokenType
+    lastKnownPrice
     raisedBNB
     migrationTarget
-    migrated
-    pair
-    buysCount
-    sellsCount
     totalVolumeBNBBuy
     totalVolumeBNBSell
-    createdAtTimestamp
-    vestingSchedules {
-      beneficiary
-      amount
-      claimed
-      voided
+    buysCount
+    sellsCount
+    migrated
+  }
+}
+```
+
+**1h stats for a set of tokens:**
+
+```graphql
+{
+  tokenPeriodStats(
+    where: {
+      period: "1h"
+      token_in: [
+        "0xTOKEN_A"
+        "0xTOKEN_B"
+        "0xTOKEN_C"
+      ]
     }
+    orderBy: volumeBNB
+    orderDirection: desc
+  ) {
+    token { id name symbol }
+    periodStart
+    openPrice
+    closePrice
+    volumeBNB
+    buysCount
+    sellsCount
   }
 }
 ```
 
-**Example response:**
+---
 
-```json
-{
-  "data": {
-    "tokens": [
-      {
-        "id": "0x1122334455667788112233445566778811223344",
-        "name": "ShibaRocket",
-        "symbol": "SHRKT",
-        "tokenType": "STANDARD",
-        "raisedBNB": "0",
-        "migrationTarget": "20000000000000000000",
-        "migrated": true,
-        "pair": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
-        "buysCount": "312",
-        "sellsCount": "97",
-        "totalVolumeBNBBuy": "32000000000000000000",
-        "totalVolumeBNBSell": "8500000000000000000",
-        "createdAtTimestamp": "1699800000",
-        "vestingSchedules": [
-          {
-            "beneficiary": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-            "amount": "50000000000000000000000000",
-            "claimed": "50000000000000000000000000",
-            "voided": false
-          }
-        ]
-      },
-      {
-        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-        "name": "PepeMoon",
-        "symbol": "PPEM",
-        "tokenType": "STANDARD",
-        "raisedBNB": "5200000000000000000",
-        "migrationTarget": "20000000000000000000",
-        "migrated": false,
-        "pair": null,
-        "buysCount": "84",
-        "sellsCount": "21",
-        "totalVolumeBNBBuy": "8400000000000000000",
-        "totalVolumeBNBSell": "1050000000000000000",
-        "createdAtTimestamp": "1700086400",
-        "vestingSchedules": [
-          {
-            "beneficiary": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-            "amount": "50000000000000000000000000",
-            "claimed": "10000000000000000000000000",
-            "voided": false
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+### 18.8 Platform-Wide Launch Activity
 
-### Top 10 tokens by total BNB buy volume
+Track new token creation over time for a "launches per day" bar chart.
+
+**Tokens created in the last 7 days:**
 
 ```graphql
+# Replace 1699344000 with (currentTimestamp - 604800)
 {
-  tokens(orderBy: totalVolumeBNBBuy, orderDirection: desc, first: 10) {
+  tokens(
+    where: { createdAtTimestamp_gt: "1699344000" }
+    orderBy: createdAtTimestamp
+    orderDirection: asc
+  ) {
     id
     name
     symbol
     tokenType
-    totalVolumeBNBBuy
-    totalVolumeBNBSell
-    buysCount
-    sellsCount
-    migrated
     creator
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "tokens": [
-      {
-        "id": "0x1122334455667788112233445566778811223344",
-        "name": "ShibaRocket",
-        "symbol": "SHRKT",
-        "tokenType": "STANDARD",
-        "totalVolumeBNBBuy": "32000000000000000000",
-        "totalVolumeBNBSell": "8500000000000000000",
-        "buysCount": "312",
-        "sellsCount": "97",
-        "migrated": true,
-        "creator": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4"
-      },
-      {
-        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-        "name": "PepeMoon",
-        "symbol": "PPEM",
-        "tokenType": "STANDARD",
-        "totalVolumeBNBBuy": "8400000000000000000",
-        "totalVolumeBNBSell": "1050000000000000000",
-        "buysCount": "84",
-        "sellsCount": "21",
-        "migrated": false,
-        "creator": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4"
-      }
-    ]
-  }
-}
-```
-
-### Top 10 tokens by trade count (most active)
-
-```graphql
-{
-  tokens(orderBy: buysCount, orderDirection: desc, first: 10) {
-    id
-    name
-    symbol
-    tokenType
-    buysCount
-    sellsCount
-    totalVolumeBNBBuy
     raisedBNB
     migrated
+    createdAtTimestamp
+    createdAtBlockNumber
   }
 }
 ```
@@ -4848,88 +3276,34 @@ Each `SparkTrade` is one Uniswap V3 `Swap` event on a Spark token's pool. `isBuy
   "data": {
     "tokens": [
       {
-        "id": "0x1122334455667788112233445566778811223344",
-        "name": "ShibaRocket",
-        "symbol": "SHRKT",
+        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+        "name": "PepeMoon",
+        "symbol": "PPEM",
         "tokenType": "STANDARD",
-        "buysCount": "312",
-        "sellsCount": "97",
-        "totalVolumeBNBBuy": "32000000000000000000",
-        "raisedBNB": "0",
-        "migrated": true
+        "creator": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
+        "raisedBNB": "17500000000000000000",
+        "migrated": false,
+        "createdAtTimestamp": "1700086400",
+        "createdAtBlockNumber": "38120000"
       }
     ]
   }
 }
 ```
 
-### Activity leaderboard — top traders by trade count
-
-```graphql
-# The Graph does not aggregate across entities natively.
-# Fetch all trades for a token and aggregate trader counts client-side.
-{
-  trades(
-    where: { token: "0xTOKEN_ADDRESS" }
-    orderBy: timestamp
-    orderDirection: desc
-    first: 1000
-  ) {
-    trader
-    type
-    bnbAmount
-    tokenAmount
-    timestamp
-  }
-}
-```
-
-**Example response:**
-
-```json
-{
-  "data": {
-    "trades": [
-      {
-        "trader": "0xccddee001122ccddee001122ccddee001122ccdd",
-        "type": "BUY",
-        "bnbAmount": "200000000000000000",
-        "tokenAmount": "4850000000000000000000000",
-        "timestamp": "1700086500"
-      },
-      {
-        "trader": "0x1234567890abcdef1234567890abcdef12345678",
-        "type": "SELL",
-        "bnbAmount": "150000000000000000",
-        "tokenAmount": "3600000000000000000000000",
-        "timestamp": "1700086450"
-      }
-    ]
-  }
-}
-```
-
-### Migration pipeline — factory overview
+**Platform lifetime stats (Factory singleton):**
 
 ```graphql
 {
   factories {
     totalTokensCreated
+    totalStandardTokens
+    totalTaxTokens
+    totalReflectionTokens
+    totalUnknownTokens
+    totalBuys
+    totalSells
     totalMigrations
-  }
-  activeBonding: tokens(where: { migrated: false }, orderBy: raisedBNB, orderDirection: desc, first: 10) {
-    id
-    name
-    symbol
-    raisedBNB
-    migrationTarget
-    buysCount
-  }
-  recentMigrations: migrations(orderBy: timestamp, orderDirection: desc, first: 5) {
-    token { id name symbol }
-    pair
-    liquidityBNB
-    timestamp
   }
 }
 ```
@@ -4942,51 +3316,69 @@ Each `SparkTrade` is one Uniswap V3 `Swap` event on a Spark token's pool. `isBuy
     "factories": [
       {
         "totalTokensCreated": "142",
+        "totalStandardTokens": "89",
+        "totalTaxTokens": "31",
+        "totalReflectionTokens": "18",
+        "totalUnknownTokens": "4",
+        "totalBuys": "9871",
+        "totalSells": "3204",
         "totalMigrations": "11"
-      }
-    ],
-    "activeBonding": [
-      {
-        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-        "name": "PepeMoon",
-        "symbol": "PPEM",
-        "raisedBNB": "5200000000000000000",
-        "migrationTarget": "20000000000000000000",
-        "buysCount": "84"
-      }
-    ],
-    "recentMigrations": [
-      {
-        "token": {
-          "id": "0x1122334455667788112233445566778811223344",
-          "name": "ShibaRocket",
-          "symbol": "SHRKT"
-        },
-        "pair": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
-        "liquidityBNB": "20000000000000000000",
-        "timestamp": "1699950000"
       }
     ]
   }
 }
 ```
 
-### Governance dashboard — factory config and pending actions
+---
+
+### 18.9 Migration Funnel Chart
+
+Show how many tokens are at each stage of the bonding curve.
+
+**Bucket tokens by progress band:**
 
 ```graphql
+# Band 1: 0–25% (raisedBNB < migrationTarget * 0.25)
+# Adjust the gte/lt thresholds to match your migrationTarget (usually 20 BNB = 20e18 wei)
 {
-  factories {
-    creationFee
-    platformFeeBps
-    charityFeeBps
-    creatorVault
-    owner
-    timelockActions(where: { executed: false, cancelled: false }) {
-      id
-      executeAfter
-      queuedAtTimestamp
-      queuedTxHash
+  earlyStage: tokens(
+    where: { migrated: false, raisedBNB_lt: "5000000000000000000" }
+    orderBy: raisedBNB
+    orderDirection: desc
+  ) {
+    id name symbol raisedBNB buysCount createdAtTimestamp
+  }
+
+  midStage: tokens(
+    where: {
+      migrated: false
+      raisedBNB_gte: "5000000000000000000"
+      raisedBNB_lt: "15000000000000000000"
     }
+    orderBy: raisedBNB
+    orderDirection: desc
+  ) {
+    id name symbol raisedBNB buysCount createdAtTimestamp
+  }
+
+  lateStage: tokens(
+    where: {
+      migrated: false
+      raisedBNB_gte: "15000000000000000000"
+    }
+    orderBy: raisedBNB
+    orderDirection: desc
+  ) {
+    id name symbol raisedBNB buysCount createdAtTimestamp
+  }
+
+  graduated: tokens(
+    where: { migrated: true }
+    orderBy: migratedAtTimestamp
+    orderDirection: desc
+    first: 20
+  ) {
+    id name symbol pair migratedAtTimestamp
   }
 }
 ```
@@ -4996,171 +3388,43 @@ Each `SparkTrade` is one Uniswap V3 `Swap` event on a Spark token's pool. `isBuy
 ```json
 {
   "data": {
-    "factories": [
-      {
-        "creationFee": "100000000000000000",
-        "platformFeeBps": "300",
-        "charityFeeBps": "100",
-        "creatorVault": "0x761697743314ce7233b5f826afefda50a13319f2",
-        "owner": "0xf1f2f3f4f5f6f7f8f1f2f3f4f5f6f7f8f1f2f3f4",
-        "timelockActions": [
-          {
-            "id": "0x1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d",
-            "executeAfter": "1700172800",
-            "queuedAtTimestamp": "1700086400",
-            "queuedTxHash": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
----
-
-## Pagination
-
-The Graph uses `first` (page size) and `skip` (offset) for pagination, or cursor-based pagination via `id_gt` / `timestamp_gt` filters (preferred for large datasets).
-
-### Offset-based (simple, avoid for > 5 000 results)
-
-```graphql
-# Page 1
-{
-  trades(orderBy: timestamp, orderDirection: desc, first: 50, skip: 0) {
-    id type trader bnbAmount timestamp
-  }
-}
-
-# Page 2
-{
-  trades(orderBy: timestamp, orderDirection: desc, first: 50, skip: 50) {
-    id type trader bnbAmount timestamp
-  }
-}
-```
-
-**Example response (page 1):**
-
-```json
-{
-  "data": {
-    "trades": [
-      {
-        "id": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd12340000",
-        "type": "BUY",
-        "trader": "0xccddee001122ccddee001122ccddee001122ccdd",
-        "bnbAmount": "200000000000000000",
-        "timestamp": "1700086500"
-      }
-    ]
-  }
-}
-```
-
-### Cursor-based (scalable — use for large result sets)
-
-Use the last returned `id` or `timestamp` as the cursor for the next page.
-
-```graphql
-# First page
-{
-  trades(orderBy: timestamp, orderDirection: desc, first: 50) {
-    id
-    type
-    trader
-    bnbAmount
-    timestamp
-  }
-}
-
-# Next page — pass the timestamp of the last result as the cursor
-{
-  trades(
-    where: { timestamp_lt: "LAST_TIMESTAMP" }
-    orderBy: timestamp
-    orderDirection: desc
-    first: 50
-  ) {
-    id
-    type
-    trader
-    bnbAmount
-    timestamp
-  }
-}
-```
-
-**Example response (first page):**
-
-```json
-{
-  "data": {
-    "trades": [
-      {
-        "id": "0xabcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd12340000",
-        "type": "BUY",
-        "trader": "0xccddee001122ccddee001122ccddee001122ccdd",
-        "bnbAmount": "200000000000000000",
-        "timestamp": "1700086500"
-      },
-      {
-        "id": "0xbeef5678beef5678beef5678beef5678beef5678beef5678beef5678beef56780001",
-        "type": "SELL",
-        "trader": "0x1234567890abcdef1234567890abcdef12345678",
-        "bnbAmount": "150000000000000000",
-        "timestamp": "1700086450"
-      }
-    ]
-  }
-}
-```
-
-### Cursor-based pagination for tokens
-
-```graphql
-# First page
-{
-  tokens(orderBy: createdAtTimestamp, orderDirection: desc, first: 20) {
-    id name symbol raisedBNB migrated createdAtTimestamp
-  }
-}
-
-# Next page
-{
-  tokens(
-    where: { createdAtTimestamp_lt: "LAST_TIMESTAMP" }
-    orderBy: createdAtTimestamp
-    orderDirection: desc
-    first: 20
-  ) {
-    id name symbol raisedBNB migrated createdAtTimestamp
-  }
-}
-```
-
-**Example response (first page):**
-
-```json
-{
-  "data": {
-    "tokens": [
-      {
-        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-        "name": "PepeMoon",
-        "symbol": "PPEM",
-        "raisedBNB": "5200000000000000000",
-        "migrated": false,
-        "createdAtTimestamp": "1700086400"
-      },
+    "earlyStage": [
       {
         "id": "0x9988776655443322998877665544332299887766",
         "name": "DogeKing",
         "symbol": "DGKG",
         "raisedBNB": "1800000000000000000",
-        "migrated": false,
+        "buysCount": "33",
         "createdAtTimestamp": "1700000000"
+      }
+    ],
+    "midStage": [
+      {
+        "id": "0xaabbccddaabbccddaabbccddaabbccddaabbccdd",
+        "name": "MoonCat",
+        "symbol": "MCAT",
+        "raisedBNB": "9500000000000000000",
+        "buysCount": "87",
+        "createdAtTimestamp": "1699900000"
+      }
+    ],
+    "lateStage": [
+      {
+        "id": "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+        "name": "PepeMoon",
+        "symbol": "PPEM",
+        "raisedBNB": "17500000000000000000",
+        "buysCount": "210",
+        "createdAtTimestamp": "1700086400"
+      }
+    ],
+    "graduated": [
+      {
+        "id": "0x1122334455667788112233445566778811223344",
+        "name": "ShibaRocket",
+        "symbol": "SHRKT",
+        "pair": "0xcafe1234cafe1234cafe1234cafe1234cafe1234",
+        "migratedAtTimestamp": "1699950000"
       }
     ]
   }

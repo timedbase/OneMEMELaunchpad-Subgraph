@@ -32,6 +32,9 @@ export function getOrCreateFactory(): Factory {
     factory.owner                 = Bytes.empty();
     factory.platformFeeBps        = BigInt.fromI32(0);
     factory.charityFeeBps         = BigInt.fromI32(0);
+    factory.feeRecipient          = null;
+    factory.charityWallet         = null;
+    factory.router                = null;
     factory.save();
   }
   return factory as Factory;

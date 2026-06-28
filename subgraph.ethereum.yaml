@@ -17,7 +17,7 @@ dataSources:
     source:
       address: "0xc4225f38832d0956aab8318f147173bf2fa18d98"
       abi: Launchpad
-      startBlock: 25410744 # TODO: replace with actual deployment block
+      startBlock: 25410744
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -76,7 +76,7 @@ dataSources:
     source:
       address: "0x69032d7bd75564b918a1a8e2e1917db1a911f4bd"
       abi: CreatorVault
-      startBlock: 25410743 # TODO: replace with actual deployment block
+      startBlock: 25410743
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -144,9 +144,9 @@ dataSources:
     name: SparkLauncher
     network: mainnet
     source:
-      address: "0x3f15d4729535e76421f3085b6392488489b33b02" # TODO: replace with new SparkLauncher address
+      address: "0x3f15d4729535e76421f3085b6392488489b33b02"
       abi: SparkLauncher
-      startBlock: 25383747 # TODO: replace with actual deployment block
+      startBlock: 25383747
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -184,9 +184,9 @@ dataSources:
     name: SparkLocker
     network: mainnet
     source:
-      address: "0xb5CAC5eDf15729e40D54787A6C0Dc880C1D65313" # TODO: replace with new SparkLocker address
+      address: "0xb5CAC5eDf15729e40D54787A6C0Dc880C1D65313"
       abi: SparkLocker
-      startBlock: 25383702 # TODO: replace with actual deployment block
+      startBlock: 25383702
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7

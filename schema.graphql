@@ -24,6 +24,12 @@ type Factory @entity {
   pendingOwner: Bytes
   platformFeeBps: BigInt!
   charityFeeBps: BigInt!
+  " Platform fee recipient wallet (set by FeeRecipientUpdated) "
+  feeRecipient: Bytes
+  " Charity wallet address (set by CharityWalletUpdated) "
+  charityWallet: Bytes
+  " PancakeSwap V2 router address (set by RouterUpdated) "
+  router: Bytes
   " CreatorVault address (set by CreatorVaultUpdated events) "
   creatorVault: Bytes
 
@@ -564,100 +570,5 @@ type LockTransfer @entity {
   to: Bytes!
   timestamp: BigInt!
   blockNumber: BigInt!
-  txHash: Bytes!
-}
-
-# ─── Peripheral Contracts ────────────────────────────────────────────────────
-
-"""
-1MEMEBB buyback contract state.
-"""
-type BuyBack @entity {
-  " Contract address "
-  id: Bytes!
-  owner: Bytes!
-  router: Bytes!
-  buyToken: Bytes!
-  cooldown: BigInt!
-  lastBuyAt: BigInt
-  totalBNBSpent: BigInt!
-  buybackCount: BigInt!
-  events: [BuyBackEvent!]! @derivedFrom(field: "buyback")
-}
-
-"""
-A single executed buyback.
-"""
-type BuyBackEvent @entity {
-  " txHash + logIndex "
-  id: Bytes!
-  buyback: BuyBack!
-  bnbSpent: BigInt!
-  balanceBefore: BigInt!
-  timestamp: BigInt!
-  blockNumber: BigInt!
-  txHash: Bytes!
-}
-
-"""
-Collector fee-splitter contract state.
-"""
-type Collector @entity {
-  " Contract address "
-  id: Bytes!
-  owner: Bytes!
-  cr8: Bytes
-  mtn: Bytes
-  bb: Bytes
-  tw: Bytes
-  hk: Bytes
-  kjc: Bytes
-  totalDispersed: BigInt!
-  disperseCount: BigInt!
-  disperses: [DisperseEvent!]! @derivedFrom(field: "collector")
-}
-
-"""
-A single BNB disperse execution on the Collector.
-"""
-type DisperseEvent @entity {
-  " txHash + logIndex "
-  id: Bytes!
-  collector: Collector!
-  total: BigInt!
-  timestamp: BigInt!
-  blockNumber: BigInt!
-  txHash: Bytes!
-}
-
-"""
-2-of-3 multisig Vault contract state.
-"""
-type VaultContract @entity {
-  " Contract address "
-  id: Bytes!
-  proposalCount: BigInt!
-  proposals: [VaultProposal!]! @derivedFrom(field: "vault")
-}
-
-"""
-A multisig proposal on the Vault.
-"""
-type VaultProposal @entity {
-  " vault address + proposal id "
-  id: Bytes!
-  vault: VaultContract!
-  proposalId: BigInt!
-  to: Bytes!
-  value: BigInt!
-  data: Bytes!
-  proposer: Bytes!
-  confirmCount: Int!
-  executed: Boolean!
-  cancelled: Boolean!
-  executedTxHash: Bytes
-  cancelledTxHash: Bytes
-  createdAtTimestamp: BigInt!
-  createdAtBlockNumber: BigInt!
   txHash: Bytes!
 }

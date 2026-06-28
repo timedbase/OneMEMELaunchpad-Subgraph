@@ -40,6 +40,56 @@ function computePrice(virtualBNB: BigInt, raisedBNB: BigInt, bcTokensPool: BigIn
   return virtualBNB.plus(raisedBNB).times(ONE_E18).div(bcTokensPool);
 }
 
+// Seed one TokenPeriodStats bucket per period at token launch so charts always have a
+// starting data point even when no trades have occurred yet.
+function seedLaunchChartData(tokenAddr: Address, blockNumber: BigInt, timestamp: BigInt, launchPrice: BigInt): void {
+  // Genesis per-block snapshot — one data point at the creation block.
+  const snapshotId = tokenAddr.concatI32(blockNumber.toI32());
+  if (TokenSnapshot.load(snapshotId) == null) {
+    const snap         = new TokenSnapshot(snapshotId);
+    snap.token         = tokenAddr;
+    snap.blockNumber   = blockNumber;
+    snap.timestamp     = timestamp;
+    snap.openRaisedBNB  = ZERO;
+    snap.closeRaisedBNB = ZERO;
+    snap.openPrice  = launchPrice;
+    snap.highPrice  = launchPrice;
+    snap.lowPrice   = launchPrice;
+    snap.closePrice = launchPrice;
+    snap.volumeBNB  = ZERO;
+    snap.buyCount   = 0;
+    snap.sellCount  = 0;
+    snap.save();
+  }
+
+  // One seed bucket per time window so time-weighted charts have data immediately.
+  const periods:   string[] = ["5m",  "45m",  "1h",   "1d",    "7d"];
+  const durations: i32[]    = [300,   2700,   3600,   86400,   604800];
+  for (let i = 0; i < periods.length; i++) {
+    const dur      = durations[i];
+    const bucketId = timestamp.div(BigInt.fromI32(dur)).toI32();
+    const statId   = tokenAddr.concat(Bytes.fromUTF8(periods[i])).concatI32(bucketId);
+    if (TokenPeriodStats.load(statId) != null) continue; // already created by a concurrent trade
+    const stat         = new TokenPeriodStats(statId);
+    stat.token         = tokenAddr;
+    stat.period        = periods[i];
+    stat.bucketId      = BigInt.fromI32(bucketId);
+    stat.periodStart   = BigInt.fromI32(bucketId).times(BigInt.fromI32(dur));
+    stat.openRaisedBNB  = ZERO;
+    stat.closeRaisedBNB = ZERO;
+    stat.buyVolumeBNB  = ZERO;
+    stat.sellVolumeBNB = ZERO;
+    stat.volumeBNB     = ZERO;
+    stat.buysCount     = ZERO;
+    stat.sellsCount    = ZERO;
+    stat.openPrice  = launchPrice;
+    stat.highPrice  = launchPrice;
+    stat.lowPrice   = launchPrice;
+    stat.closePrice = launchPrice;
+    stat.save();
+  }
+}
+
 function upsertOnePeriodStat(
   tokenAddr: Address,
   period: string,
@@ -272,6 +322,11 @@ export function handleTokenCreated(event: TokenCreated): void {
 
   token.save();
 
+  // Seed chart data so every token has at least a launch-price candle before any trades.
+  if (token.lastKnownPrice.gt(ZERO)) {
+    seedLaunchChartData(event.params.token, event.block.number, event.block.timestamp, token.lastKnownPrice);
+  }
+
   if (isNew) {
     MemeToken.create(event.params.token);
 
@@ -467,6 +522,20 @@ export function handleTimelockCancelled(event: TimelockCancelled): void {
   action.save();
 }
 
-export function handleFeeRecipientUpdated(_event: FeeRecipientUpdated): void {}
-export function handleCharityWalletUpdated(_event: CharityWalletUpdated): void {}
-export function handleRouterUpdated(_event: RouterUpdated): void {}
+export function handleFeeRecipientUpdated(event: FeeRecipientUpdated): void {
+  const factory = getOrCreateFactory();
+  factory.feeRecipient = event.params.recipient;
+  factory.save();
+}
+
+export function handleCharityWalletUpdated(event: CharityWalletUpdated): void {
+  const factory = getOrCreateFactory();
+  factory.charityWallet = event.params.wallet;
+  factory.save();
+}
+
+export function handleRouterUpdated(event: RouterUpdated): void {
+  const factory = getOrCreateFactory();
+  factory.router = event.params.newRouter;
+  factory.save();
+}
