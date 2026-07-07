@@ -13,6 +13,7 @@ import {
 } from "../generated/SparkLauncher/SparkLauncher";
 import { SparkLauncher as SparkLauncherContract } from "../generated/SparkLauncher/SparkLauncher";
 import { SparkToken as SparkTokenContract } from "../generated/SparkLauncher/SparkToken";
+import { UniswapV3Pool as UniswapV3PoolContract } from "../generated/templates/UniswapV3Pool/UniswapV3Pool";
 import {
   SparkLaunchedToken,
   SparkDex,
@@ -21,6 +22,7 @@ import {
   SparkLauncherState,
 } from "../generated/schema";
 import { UniswapV3Pool, SparkToken as SparkTokenTemplate } from "../generated/templates";
+import { ZERO, resolveIpfsMetadata, sqrtPriceX96ToPrice, computeMarketCap, applySparkUsdPricing, seedSparkLaunchChartData } from "./utils";
 
 function getOrCreateLauncherState(contractAddr: Address): SparkLauncherState {
   const id = contractAddr as Bytes;
@@ -67,9 +69,20 @@ export function handleTokenLaunched(event: TokenLaunched): void {
   const nameResult     = tokenContract.try_name();
   const symbolResult   = tokenContract.try_symbol();
   const metaResult     = tokenContract.try_metaURI();
+  const supplyResult   = tokenContract.try_totalSupply();
   if (!nameResult.reverted)   sparkToken.name    = nameResult.value;
   if (!symbolResult.reverted) sparkToken.symbol  = symbolResult.value;
   if (!metaResult.reverted)   sparkToken.metaURI = metaResult.value;
+  sparkToken.totalSupply = supplyResult.reverted ? ZERO : supplyResult.value;
+
+  if (!metaResult.reverted && metaResult.value.length > 0) {
+    const meta = resolveIpfsMetadata(metaResult.value);
+    if (meta.description) sparkToken.description = meta.description as string;
+    if (meta.image)       sparkToken.image       = meta.image as string;
+    if (meta.website)     sparkToken.website      = meta.website as string;
+    if (meta.twitter)     sparkToken.twitter      = meta.twitter as string;
+    if (meta.telegram)    sparkToken.telegram     = meta.telegram as string;
+  }
 
   sparkToken.creator    = event.params.creator;
   sparkToken.factory    = event.params.factory;
@@ -102,10 +115,32 @@ export function handleTokenLaunched(event: TokenLaunched): void {
   sparkToken.totalVolumeToken = BigInt.fromI32(0);
   sparkToken.totalVolumeQuote = BigInt.fromI32(0);
 
+  // The pool is initialized synchronously inside launch(), before this event fires —
+  // read its starting sqrtPriceX96 to seed price/marketCap and the genesis OHLCV rows.
+  const poolContract = UniswapV3PoolContract.bind(event.params.pool);
+  const slot0Result   = poolContract.try_slot0();
+  sparkToken.lastKnownPrice = !slot0Result.reverted
+    ? sqrtPriceX96ToPrice(slot0Result.value.value0, tokenIsLower)
+    : ZERO;
+  sparkToken.marketCap = computeMarketCap(sparkToken.lastKnownPrice, sparkToken.totalSupply);
+
+  // Only the wrapped-native quote asset (WBNB/WETH) has a price from our oracle.
+  const quoteToken = SparkQuoteToken.load(event.params.quoteToken);
+  if (quoteToken != null && quoteToken.isNative) {
+    applySparkUsdPricing(sparkToken, sparkToken.lastKnownPrice);
+  } else {
+    sparkToken.priceUSD = null;
+    sparkToken.marketCapUSD = null;
+  }
+
   sparkToken.createdAtTimestamp   = event.block.timestamp;
   sparkToken.createdAtBlockNumber = event.block.number;
   sparkToken.txHash               = event.transaction.hash;
   sparkToken.save();
+
+  if (sparkToken.lastKnownPrice.gt(ZERO)) {
+    seedSparkLaunchChartData(event.params.token, event.block.number, event.block.timestamp, sparkToken.lastKnownPrice);
+  }
 
   const pool = new SparkPool(event.params.pool);
   pool.token         = event.params.token;

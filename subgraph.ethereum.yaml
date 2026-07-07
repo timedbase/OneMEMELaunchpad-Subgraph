@@ -30,11 +30,14 @@ dataSources:
         - TimelockAction
         - TokenSnapshot
         - TokenPeriodStats
+        - LaunchpadPair
       abis:
         - name: Launchpad
           file: ./abis/Launchpad.json
         - name: Token
           file: ./abis/Token.json
+        - name: PancakePair
+          file: ./abis/PancakePair.json
       eventHandlers:
         - event: TokenCreated(indexed address,indexed address,uint256,uint256,uint256,bool,uint256)
           handler: handleTokenCreated
@@ -97,9 +100,12 @@ dataSources:
         - CreatorVaultPosition
         - CreatorVaultFeeClaim
         - CreatorVaultState
+        - LaunchpadPool
       abis:
         - name: CreatorVault
           file: ./abis/CreatorVault.json
+        - name: UniswapV3Pool
+          file: ./abis/UniswapV3Pool.json
       eventHandlers:
         - event: VestingAdded(indexed address,indexed address,uint256,uint256)
           handler: handleVestingAdded
@@ -122,6 +128,38 @@ dataSources:
         - event: LaunchManagerUpdated(indexed address,indexed address)
           handler: handleLaunchManagerUpdated
       file: ./src/creatorVault.ts
+
+  # USDC/WETH Uniswap V2 pair — the Launchpad contract's own usdQuotePair (read live via
+  # usdcToken()/usdQuotePair() on the deployed Launchpad; this is the canonical, highly-liquid
+  # USDC/WETH pool). USDC (0xa0b8699...) is token0.
+  # startBlock matches OneCoinLocker below, the earliest startBlock among this chain's data sources.
+  - kind: ethereum
+    name: NativeUsdOracle
+    network: mainnet
+    source:
+      address: "0xb4e16d0168e52d35cacd2c6185b44281ec28c9dc"
+      abi: PancakePair
+      startBlock: 25182671
+    context:
+      usdcToken:
+        type: Bytes
+        data: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - NativeUsdPrice
+        - NativeUsdPriceSnapshot
+      abis:
+        - name: PancakePair
+          file: ./abis/PancakePair.json
+        - name: Token
+          file: ./abis/Token.json
+      eventHandlers:
+        - event: Sync(uint112,uint112)
+          handler: handleSync
+      file: ./src/usdOracle.ts
 
   - kind: ethereum
     name: OneCoinLocker
@@ -180,6 +218,9 @@ dataSources:
         - SparkDex
         - SparkQuoteToken
         - SparkLauncherState
+        - SparkPool
+        - SparkTokenSnapshot
+        - SparkTokenPeriodStats
       abis:
         - name: SparkLauncher
           file: ./abis/SparkLauncher.json
@@ -276,6 +317,8 @@ templates:
         - SparkPool
         - SparkLaunchedToken
         - SparkTrade
+        - SparkTokenSnapshot
+        - SparkTokenPeriodStats
       abis:
         - name: UniswapV3Pool
           file: ./abis/UniswapV3Pool.json
@@ -283,6 +326,50 @@ templates:
         - event: Swap(indexed address,indexed address,int256,int256,uint160,uint128,int24)
           handler: handleSwap
       file: ./src/sparkPool.ts
+  - kind: ethereum
+    name: LaunchpadV3Pool
+    network: mainnet
+    source:
+      abi: UniswapV3Pool
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - LaunchpadPool
+        - Token
+        - TokenSnapshot
+        - TokenPeriodStats
+        - DexTrade
+      abis:
+        - name: UniswapV3Pool
+          file: ./abis/UniswapV3Pool.json
+      eventHandlers:
+        - event: Swap(indexed address,indexed address,int256,int256,uint160,uint128,int24)
+          handler: handleSwap
+      file: ./src/launchpadPool.ts
+  - kind: ethereum
+    name: PancakePair
+    network: mainnet
+    source:
+      abi: PancakePair
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - LaunchpadPair
+        - Token
+        - TokenSnapshot
+        - TokenPeriodStats
+        - DexTrade
+      abis:
+        - name: PancakePair
+          file: ./abis/PancakePair.json
+      eventHandlers:
+        - event: Swap(indexed address,uint256,uint256,uint256,uint256,indexed address)
+          handler: handleSwap
+      file: ./src/launchpadPair.ts
   - kind: ethereum
     name: SparkToken
     network: mainnet

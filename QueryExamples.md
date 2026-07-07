@@ -5,7 +5,10 @@ All fields match [`schema.graphql`](schema.graphql).
 Replace placeholder addresses (`0xTOKEN`, `0xWALLET`, etc.) with real checksummed hex.
 
 **Units:** BNB and token amounts are stored in **wei** — divide by `1e18` to get human-readable values.  
-**Prices** (`openPrice`, `closePrice`, etc.) are spot prices scaled ×1e18: `(virtualBNB + raisedBNB) × 1e18 / bcTokensPool`.
+**Prices** (`openPrice`, `closePrice`, `lastKnownPrice`, etc.) are spot prices scaled ×1e18, expressed as wei-of-native/quote-asset per whole token.  
+**Market cap** (`Token.marketCap` / `SparkLaunchedToken.marketCap`) = `lastKnownPrice × totalSupply / 1e18`, in the same wei units as the rest of the schema — no USD conversion. It's only stored live on the token entity (not duplicated into every historical snapshot row); for a market cap at a past point in time, compute `snapshot.closePrice × token.totalSupply / 1e18` yourself.  
+**Price/trade tracking continues past migration.** `STANDARD` tokens migrate into a PancakeSwap V3 pool; `TAX`/`REFLECTION` tokens migrate into a PancakeSwap V2 pair. Both keep updating `Token.lastKnownPrice`/`marketCap`, `TokenSnapshot`, and `TokenPeriodStats` — bonding-curve trades land in `Trade`, post-migration swaps land in the separate `DexTrade` entity (see §3b). Holder balances (`Holder`) are also tracked for the token's full lifetime, not just the bonding-curve phase.  
+**USD prices** (`Token.priceUSD`/`marketCapUSD`, `SparkLaunchedToken.priceUSD`/`marketCapUSD`) are derived from a native/USD oracle indexed per chain (§2b) — nullable until the oracle has a rate, and for Spark tokens only populated when the quote asset is the native token. See §2b for details.
 
 ---
 
@@ -13,7 +16,9 @@ Replace placeholder addresses (`0xTOKEN`, `0xWALLET`, etc.) with real checksumme
 
 1. [Factory](#1-factory)
 2. [Tokens](#2-tokens)
+2b. [USD Pricing](#2b-usd-pricing)
 3. [Trades](#3-trades)
+3b. [Post-Migration DEX Trades](#3b-post-migration-dex-trades)
 4. [Migrations](#4-migrations)
 5. [Vesting](#5-vesting)
 6. [Creator Vault Positions](#6-creator-vault-positions)
@@ -25,6 +30,7 @@ Replace placeholder addresses (`0xTOKEN`, `0xWALLET`, etc.) with real checksumme
 11. [OneCoinLocker](#11-onecoinlocker)
 12. [Spark Launcher](#12-spark-launcher)
 13. [Spark Tokens](#13-spark-tokens)
+13b. [Spark Price, Market Cap & OHLCV](#13b-spark-price-market-cap--ohlcv)
 14. [Spark Trades](#14-spark-trades)
 15. [Spark Fee Claims](#15-spark-fee-claims)
 16. [Spark Holders](#16-spark-holders)
@@ -252,6 +258,9 @@ The `Factory` entity is a singleton — there is always exactly one. Its `id` is
     raisedBNB
     bcTokensPool
     lastKnownPrice
+    marketCap
+    priceUSD
+    marketCapUSD
     migrated
     pair
     migrationBNB
@@ -301,6 +310,9 @@ The `Factory` entity is a singleton — there is always exactly one. Its `id` is
       "raisedBNB": "5200000000000000000",
       "bcTokensPool": "790000000000000000000000000",
       "lastKnownPrice": "1086000000000000",
+      "marketCap": "1086000000000000000000000",
+      "priceUSD": "651600000000000",
+      "marketCapUSD": "651600000000000000000000",
       "migrated": false,
       "pair": null,
       "migrationBNB": null,
@@ -563,6 +575,64 @@ The `Factory` entity is a singleton — there is always exactly one. Its `id` is
     tokenType
     creator
     createdAtTimestamp
+  }
+}
+```
+
+---
+
+## 2b. USD Pricing
+
+`NativeUsdPrice` is a singleton tracking the live BNB/USD (BSC) or ETH/USD (Ethereum) rate, derived from that chain's USDC/native PancakeSwap or Uniswap V2 pool (treats USDC as a fixed $1 peg). `NativeUsdPriceSnapshot` keeps a per-block history of it. `Token.priceUSD`/`marketCapUSD` (and the Spark equivalents) are computed from this oracle at every trade, so they're already historically accurate as of the block they were set — no need to correlate against the oracle history yourself unless you want the raw native/USD rate directly.
+
+### Current native/USD rate
+
+```graphql
+{
+  nativeUsdPrice(id: "0x6e6174697665") {
+    price
+    usdcIsToken0
+    usdcDecimals
+    lastUpdatedBlock
+    lastUpdatedTimestamp
+  }
+}
+```
+
+`id` is `Bytes.fromUTF8("native")` — hex-encode the string `"native"` (shown above) to query the singleton directly, or just use `nativeUsdPrices { ... }` (plural, no `id` filter) since there's only ever one.
+
+### Historical native/USD rate around a specific block
+
+```graphql
+{
+  nativeUsdPriceSnapshots(
+    where: { blockNumber_lte: "38120000" }
+    orderBy: blockNumber
+    orderDirection: desc
+    first: 1
+  ) {
+    blockNumber
+    timestamp
+    closePrice
+  }
+}
+```
+
+### Tokens ranked by USD market cap
+
+```graphql
+{
+  tokens(
+    where: { marketCapUSD_not: null }
+    orderBy: marketCapUSD
+    orderDirection: desc
+    first: 20
+  ) {
+    id
+    name
+    symbol
+    priceUSD
+    marketCapUSD
   }
 }
 ```
@@ -897,6 +967,62 @@ Emergency migration fires when an admin forcefully moves a stuck LP position and
     emergencyMigrationTokenAmount
     emergencyMigratedAtTimestamp
     emergencyMigratedAtBlockNumber
+  }
+}
+```
+
+---
+
+## 3b. Post-Migration DEX Trades
+
+Once a token migrates, further buys/sells happen on its destination pool/pair instead of the bonding curve — `STANDARD` tokens on a PancakeSwap V3 pool, `TAX`/`REFLECTION` tokens on a PancakeSwap V2 pair. These land in `DexTrade` (separate from the bonding-curve-only `Trade` entity) and keep `Token.lastKnownPrice`/`marketCap` and the `TokenSnapshot`/`TokenPeriodStats` OHLCV buckets updating.
+
+### Recent post-migration trades for a token
+
+```graphql
+{
+  dexTrades(
+    where: { token: "0xTOKEN" }
+    orderBy: timestamp
+    orderDirection: desc
+    first: 20
+  ) {
+    id
+    venue
+    trader
+    type
+    bnbAmount
+    tokenAmount
+    priceAfter
+    timestamp
+    txHash
+  }
+}
+```
+
+### Full trade history across both venues, oldest first
+
+Combine bonding-curve `trades` and post-migration `dexTrades` client-side (both are exposed as derived fields on `Token`) to reconstruct a token's complete trade timeline:
+
+```graphql
+{
+  token(id: "0xTOKEN") {
+    trades(orderBy: timestamp, orderDirection: asc) {
+      type
+      bnbAmount
+      tokenAmount
+      timestamp
+      txHash
+    }
+    dexTrades(orderBy: timestamp, orderDirection: asc) {
+      venue
+      type
+      bnbAmount
+      tokenAmount
+      priceAfter
+      timestamp
+      txHash
+    }
   }
 }
 ```
@@ -1699,7 +1825,7 @@ One entity per `(token, period, bucketId)` where `bucketId = floor(timestamp / w
 
 ## 10. Holders
 
-Holder balances are tracked via ERC-20 `Transfer` events while a token is on the bonding curve (`migrated = false`). Tracking stops at migration to avoid DEX swap noise.
+Holder balances are tracked via ERC-20 `Transfer` events for the token's full lifetime — both the bonding-curve phase and after migration to its destination DEX pool/pair.
 
 ### Top holders for a token
 
@@ -1742,7 +1868,7 @@ Holder balances are tracked via ERC-20 `Transfer` events while a token is on the
 }
 ```
 
-### All tokens held by a wallet (bonding-curve phase only)
+### All tokens held by a wallet
 
 ```graphql
 {
@@ -2309,6 +2435,11 @@ Action values: `CREATED` | `EDITED` | `EXTENDED` | `DESCRIPTION_CHANGED` | `WITH
     name
     symbol
     metaURI
+    totalSupply
+    lastKnownPrice
+    marketCap
+    priceUSD
+    marketCapUSD
     creator
     quoteToken
     pool
@@ -2365,6 +2496,16 @@ Action values: `CREATED` | `EDITED` | `EXTENDED` | `DESCRIPTION_CHANGED` | `WITH
     name
     symbol
     metaURI
+    totalSupply
+    lastKnownPrice
+    marketCap
+    priceUSD
+    marketCapUSD
+    description
+    image
+    website
+    twitter
+    telegram
     creator
     factory
     positionManager
@@ -2467,6 +2608,72 @@ Action values: `CREATED` | `EDITED` | `EXTENDED` | `DESCRIPTION_CHANGED` | `WITH
         "totalVolumeQuote": "4200000000000000000"
       }
     }
+  }
+}
+```
+
+---
+
+## 13b. Spark Price, Market Cap & OHLCV
+
+Spark tokens are tradeable on their Uniswap V3 pool from the moment they launch (no bonding-curve phase). `SparkLaunchedToken.lastKnownPrice`/`marketCap` update on every swap, and `SparkTokenSnapshot`/`SparkTokenPeriodStats` provide the same per-block and time-bucketed OHLCV shape as the Launchpad's `TokenSnapshot`/`TokenPeriodStats` (§8/§9) — just with `volumeQuote` instead of `volumeBNB` since the quote asset varies per token.
+
+### Recent per-block snapshots for a Spark token
+
+```graphql
+{
+  sparkTokenSnapshots(
+    where: { token: "0xTOKEN" }
+    orderBy: blockNumber
+    orderDirection: desc
+    first: 20
+  ) {
+    blockNumber
+    timestamp
+    openPrice
+    highPrice
+    lowPrice
+    closePrice
+    volumeQuote
+    buyCount
+    sellCount
+  }
+}
+```
+
+### 1-hour candles for a specific Spark token
+
+```graphql
+{
+  sparkTokenPeriodStats(
+    where: { token: "0xTOKEN", period: "1h" }
+    orderBy: bucketId
+    orderDirection: desc
+    first: 48
+  ) {
+    periodStart
+    openPrice
+    highPrice
+    lowPrice
+    closePrice
+    volumeQuote
+    buysCount
+    sellsCount
+  }
+}
+```
+
+### Spark tokens ranked by market cap
+
+```graphql
+{
+  sparkLaunchedTokens(orderBy: marketCap, orderDirection: desc, first: 20) {
+    id
+    name
+    symbol
+    lastKnownPrice
+    marketCap
+    quoteToken
   }
 }
 ```

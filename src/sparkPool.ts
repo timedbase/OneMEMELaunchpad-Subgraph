@@ -1,6 +1,7 @@
-import { BigInt, Bytes } from "@graphprotocol/graph-ts";
+import { Address, BigInt, Bytes } from "@graphprotocol/graph-ts";
 import { Swap } from "../generated/templates/UniswapV3Pool/UniswapV3Pool";
-import { SparkPool, SparkLaunchedToken, SparkTrade } from "../generated/schema";
+import { SparkPool, SparkLaunchedToken, SparkQuoteToken, SparkTrade } from "../generated/schema";
+import { sqrtPriceX96ToPrice, computeMarketCap, applySparkUsdPricing, upsertSparkSnapshot, upsertAllSparkPeriodStats } from "./utils";
 
 export function handleSwap(event: Swap): void {
   const poolEntry = SparkPool.load(event.address);
@@ -38,8 +39,28 @@ export function handleSwap(event: Swap): void {
   trade.txHash       = event.transaction.hash;
   trade.save();
 
+  const openPrice  = sparkToken.lastKnownPrice;
+  const closePrice = sqrtPriceX96ToPrice(event.params.sqrtPriceX96, sparkIsToken0);
+
+  const addr = Address.fromBytes(poolEntry.token);
+  upsertSparkSnapshot(addr, event.block.number, event.block.timestamp, trade.quoteAmount, isBuy, openPrice, closePrice);
+  upsertAllSparkPeriodStats(addr, event.block.timestamp, trade.quoteAmount, isBuy, openPrice, closePrice);
+
   sparkToken.tradeCount       = sparkToken.tradeCount.plus(BigInt.fromI32(1));
   sparkToken.totalVolumeToken = sparkToken.totalVolumeToken.plus(trade.sparkAmount);
   sparkToken.totalVolumeQuote = sparkToken.totalVolumeQuote.plus(trade.quoteAmount);
+  sparkToken.lastKnownPrice   = closePrice;
+  sparkToken.marketCap        = computeMarketCap(closePrice, sparkToken.totalSupply);
+
+  // The native/USD oracle only prices the wrapped native asset (WBNB/WETH) — only apply it
+  // when this Spark token's quote asset actually is the native token, not an arbitrary ERC-20.
+  const quoteToken = SparkQuoteToken.load(sparkToken.quoteToken);
+  if (quoteToken != null && quoteToken.isNative) {
+    applySparkUsdPricing(sparkToken, closePrice);
+  } else {
+    sparkToken.priceUSD = null;
+    sparkToken.marketCapUSD = null;
+  }
+
   sparkToken.save();
 }

@@ -7,9 +7,8 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 export function handleTransfer(event: Transfer): void {
   const tokenAddr = event.address;
 
-  // Stop tracking after migration — avoids indexing high-volume DEX swap traffic.
   const token = Token.load(tokenAddr);
-  if (token == null || token.migrated) return;
+  if (token == null) return;
 
   const from  = event.params.from;
   const to    = event.params.to;

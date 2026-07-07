@@ -117,6 +117,12 @@ type Token @entity {
 
   " Last known spot price (wei, scaled ×1e18) — kept in sync on every trade for open-price seeding "
   lastKnownPrice: BigInt!
+  " lastKnownPrice × totalSupply / 1e18 — kept in sync everywhere lastKnownPrice is updated "
+  marketCap: BigInt!
+  " USD value of lastKnownPrice, scaled ×1e18, via the chain's NativeUsdPrice oracle. Null until the oracle has seen at least one swap. "
+  priceUSD: BigInt
+  " USD value of marketCap, scaled ×1e18. Null until the oracle has seen at least one swap. "
+  marketCapUSD: BigInt
 
   " Creation metadata "
   createdAtTimestamp: BigInt!
@@ -134,11 +140,59 @@ type Token @entity {
   telegram: String
 
   trades:                [Trade!]!                  @derivedFrom(field: "token")
+  dexTrades:             [DexTrade!]!               @derivedFrom(field: "token")
   migrations:            [Migration!]!              @derivedFrom(field: "token")
   vestingSchedules:      [VestingSchedule!]!        @derivedFrom(field: "token")
   creatorVaultPositions: [CreatorVaultPosition!]!   @derivedFrom(field: "token")
   snapshots:             [TokenSnapshot!]!          @derivedFrom(field: "token")
   holders:               [Holder!]!                 @derivedFrom(field: "token")
+}
+
+"""
+A single swap on the token's post-migration DEX venue (PancakeSwap V2 pair for
+TAX/REFLECTION tokens, PancakeSwap V3 pool for STANDARD tokens). Complements the
+bonding-curve-only `Trade` entity so trade history continues past migration.
+"""
+type DexTrade @entity {
+  " txHash + logIndex "
+  id: Bytes!
+  token: Token!
+  " V2_PAIR | V3_POOL "
+  venue: String!
+  trader: Bytes!
+  " BUY | SELL "
+  type: String!
+  bnbAmount: BigInt!
+  tokenAmount: BigInt!
+  " Spot price (wei, scaled ×1e18) immediately after this swap "
+  priceAfter: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}
+
+"""
+Lookup table: PancakeSwap V3 pool address → Token, for STANDARD-token migrations.
+Created from CreatorVault's PositionRegistered event.
+"""
+type LaunchpadPool @entity {
+  " Pool contract address "
+  id: Bytes!
+  token: Token!
+  " True if the launched token is token0 in the V3 pool "
+  tokenIsToken0: Boolean!
+}
+
+"""
+Lookup table: PancakeSwap V2 pair address → Token, for TAX/REFLECTION-token migrations.
+Created from Launchpad's TokenMigrated event.
+"""
+type LaunchpadPair @entity {
+  " Pair contract address "
+  id: Bytes!
+  token: Token!
+  " True if the launched token is token0 in the V2 pair "
+  tokenIsToken0: Boolean!
 }
 
 """
@@ -421,6 +475,7 @@ type SparkLaunchedToken @entity {
   name: String
   symbol: String
   metaURI: String
+  totalSupply: BigInt!
   creator: Bytes!
   " V3 factory used at launch "
   factory: Bytes!
@@ -436,6 +491,22 @@ type SparkLaunchedToken @entity {
   tokenId: BigInt!
   " True if the LP NFT was emergency-withdrawn by the locker owner "
   lpWithdrawn: Boolean!
+
+  " Resolved from IPFS metadata JSON (metaURI) "
+  description: String
+  image: String
+  website: String
+  twitter: String
+  telegram: String
+
+  " Last known spot price — quote-token wei per whole Spark token, scaled ×1e18. Kept in sync on every swap. "
+  lastKnownPrice: BigInt!
+  " lastKnownPrice × totalSupply / 1e18 — kept in sync everywhere lastKnownPrice is updated "
+  marketCap: BigInt!
+  " USD value of lastKnownPrice, scaled ×1e18, via the chain's NativeUsdPrice oracle. Null until the oracle has seen at least one swap. "
+  priceUSD: BigInt
+  " USD value of marketCap, scaled ×1e18. Null until the oracle has seen at least one swap. "
+  marketCapUSD: BigInt
 
   " Cumulative fees distributed across all claimFees calls "
   totalCreatorFees0: BigInt!
@@ -455,9 +526,55 @@ type SparkLaunchedToken @entity {
   createdAtBlockNumber: BigInt!
   txHash: Bytes!
 
-  feeClaims: [SparkFeeClaim!]! @derivedFrom(field: "token")
-  trades:    [SparkTrade!]!    @derivedFrom(field: "token")
-  holders:   [SparkHolder!]!  @derivedFrom(field: "token")
+  feeClaims:   [SparkFeeClaim!]!       @derivedFrom(field: "token")
+  trades:      [SparkTrade!]!          @derivedFrom(field: "token")
+  holders:     [SparkHolder!]!         @derivedFrom(field: "token")
+  snapshots:   [SparkTokenSnapshot!]!    @derivedFrom(field: "token")
+  periodStats: [SparkTokenPeriodStats!]! @derivedFrom(field: "token")
+}
+
+"""
+Per-block OHLCV snapshot for a Spark-launched token, mirroring TokenSnapshot.
+"""
+type SparkTokenSnapshot @entity {
+  " tokenAddress.concatI32(blockNumber) — 24-byte concatenated Bytes "
+  id: Bytes!
+  token: SparkLaunchedToken!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  " Spot price (quote-token wei, scaled ×1e18) "
+  openPrice: BigInt!
+  highPrice: BigInt!
+  lowPrice: BigInt!
+  closePrice: BigInt!
+  volumeQuote: BigInt!
+  buyCount: Int!
+  sellCount: Int!
+}
+
+"""
+Time-bucketed stats per Spark-launched token — used for trending and leaderboards
+across five windows, mirroring TokenPeriodStats.
+period: 5m | 45m | 1h | 1d | 7d. One entity per (token, period, bucket).
+id = tokenAddress + Bytes.fromUTF8(period) + concatI32(bucketId).
+"""
+type SparkTokenPeriodStats @entity {
+  id: Bytes!
+  token: SparkLaunchedToken!
+  " 5m | 45m | 1h | 1d | 7d "
+  period: String!
+  bucketId: BigInt!
+  periodStart: BigInt!
+  buyVolumeQuote: BigInt!
+  sellVolumeQuote: BigInt!
+  volumeQuote: BigInt!
+  buysCount: BigInt!
+  sellsCount: BigInt!
+  " Spot price (quote-token wei, scaled ×1e18) "
+  openPrice: BigInt!
+  highPrice: BigInt!
+  lowPrice: BigInt!
+  closePrice: BigInt!
 }
 
 """
@@ -644,4 +761,37 @@ type LockActivity @entity {
   from: Bytes
   " TRANSFERRED: new owner "
   to: Bytes
+}
+
+# ─── USD price oracle ──────────────────────────────────────────────────────────
+
+"""
+Live native/USD spot price (BNB/USD on BSC, ETH/USD on Ethereum), derived from the
+chain's USDC/native PancakeSwap or Uniswap V2 pool reserves. Treats USDC as a $1 peg —
+no external price feed. Singleton — id is always Bytes.fromUTF8("native").
+"""
+type NativeUsdPrice @entity {
+  id: Bytes!
+  " USD value of 1 whole native token, scaled ×1e18 "
+  price: BigInt!
+  usdcIsToken0: Boolean!
+  usdcDecimals: Int!
+  lastUpdatedBlock: BigInt!
+  lastUpdatedTimestamp: BigInt!
+}
+
+"""
+Per-block snapshot of the native/USD oracle price — independent, continuous history
+of the USDC/native pool so a historical USD price can be reconstructed for any past
+token trade or OHLCV bucket by matching on blockNumber.
+"""
+type NativeUsdPriceSnapshot @entity {
+  " blockNumber, 4-byte big-endian "
+  id: Bytes!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  openPrice: BigInt!
+  highPrice: BigInt!
+  lowPrice: BigInt!
+  closePrice: BigInt!
 }

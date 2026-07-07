@@ -30,11 +30,14 @@ dataSources:
         - TimelockAction
         - TokenSnapshot
         - TokenPeriodStats
+        - LaunchpadPair
       abis:
         - name: Launchpad
           file: ./abis/Launchpad.json
         - name: Token
           file: ./abis/Token.json
+        - name: PancakePair
+          file: ./abis/PancakePair.json
       eventHandlers:
         - event: TokenCreated(indexed address,indexed address,uint256,uint256,uint256,bool,uint256)
           handler: handleTokenCreated
@@ -97,9 +100,12 @@ dataSources:
         - CreatorVaultPosition
         - CreatorVaultFeeClaim
         - CreatorVaultState
+        - LaunchpadPool
       abis:
         - name: CreatorVault
           file: ./abis/CreatorVault.json
+        - name: UniswapV3Pool
+          file: ./abis/UniswapV3Pool.json
       eventHandlers:
         - event: VestingAdded(indexed address,indexed address,uint256,uint256)
           handler: handleVestingAdded
@@ -122,6 +128,37 @@ dataSources:
         - event: LaunchManagerUpdated(indexed address,indexed address)
           handler: handleLaunchManagerUpdated
       file: ./src/creatorVault.ts
+
+  # USDC/WBNB PancakeSwap V2 pair — the Launchpad contract's own usdQuotePair (read live via
+  # usdcToken()/usdQuotePair() on the deployed Launchpad). USDC (0x8ac76a5...) is token0.
+  # startBlock matches OneCoinLocker below, the earliest startBlock among this chain's data sources.
+  - kind: ethereum
+    name: NativeUsdOracle
+    network: bsc
+    source:
+      address: "0xd99c7f6c65857ac913a8f880a4cb84032ab2fc5b"
+      abi: PancakePair
+      startBlock: 100627321
+    context:
+      usdcToken:
+        type: Bytes
+        data: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - NativeUsdPrice
+        - NativeUsdPriceSnapshot
+      abis:
+        - name: PancakePair
+          file: ./abis/PancakePair.json
+        - name: Token
+          file: ./abis/Token.json
+      eventHandlers:
+        - event: Sync(uint112,uint112)
+          handler: handleSync
+      file: ./src/usdOracle.ts
 
   - kind: ethereum
     name: OneCoinLocker
@@ -180,6 +217,9 @@ dataSources:
         - SparkDex
         - SparkQuoteToken
         - SparkLauncherState
+        - SparkPool
+        - SparkTokenSnapshot
+        - SparkTokenPeriodStats
       abis:
         - name: SparkLauncher
           file: ./abis/SparkLauncher.json
@@ -276,6 +316,8 @@ templates:
         - SparkPool
         - SparkLaunchedToken
         - SparkTrade
+        - SparkTokenSnapshot
+        - SparkTokenPeriodStats
       abis:
         - name: UniswapV3Pool
           file: ./abis/UniswapV3Pool.json
@@ -283,6 +325,50 @@ templates:
         - event: Swap(indexed address,indexed address,int256,int256,uint160,uint128,int24)
           handler: handleSwap
       file: ./src/sparkPool.ts
+  - kind: ethereum
+    name: LaunchpadV3Pool
+    network: bsc
+    source:
+      abi: UniswapV3Pool
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - LaunchpadPool
+        - Token
+        - TokenSnapshot
+        - TokenPeriodStats
+        - DexTrade
+      abis:
+        - name: UniswapV3Pool
+          file: ./abis/UniswapV3Pool.json
+      eventHandlers:
+        - event: Swap(indexed address,indexed address,int256,int256,uint160,uint128,int24)
+          handler: handleSwap
+      file: ./src/launchpadPool.ts
+  - kind: ethereum
+    name: PancakePair
+    network: bsc
+    source:
+      abi: PancakePair
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - LaunchpadPair
+        - Token
+        - TokenSnapshot
+        - TokenPeriodStats
+        - DexTrade
+      abis:
+        - name: PancakePair
+          file: ./abis/PancakePair.json
+      eventHandlers:
+        - event: Swap(indexed address,uint256,uint256,uint256,uint256,indexed address)
+          handler: handleSwap
+      file: ./src/launchpadPair.ts
   - kind: ethereum
     name: SparkToken
     network: bsc

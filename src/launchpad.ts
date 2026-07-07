@@ -1,7 +1,8 @@
 import { Address, BigInt, Bytes } from "@graphprotocol/graph-ts";
 import { Launchpad as LaunchpadContract } from "../generated/Launchpad/Launchpad";
 import { Token as TokenContract } from "../generated/Launchpad/Token";
-import { MemeToken } from "../generated/templates";
+import { PancakePair as PancakePairContract } from "../generated/Launchpad/PancakePair";
+import { MemeToken, PancakePair } from "../generated/templates";
 import {
   TokenCreated,
   TokenRegistered,
@@ -25,181 +26,20 @@ import {
   TimelockExecuted,
   TimelockCancelled,
 } from "../generated/Launchpad/Launchpad";
-import { Token, Trade, Migration, TimelockAction, TokenSnapshot, TokenPeriodStats } from "../generated/schema";
-import { getOrCreateFactory, detectTokenType, loadIpfsMetadata, MAX_SPOT_PRICE } from "./utils";
-
-const ZERO    = BigInt.fromI32(0);
-const ONE_E18 = BigInt.fromString("1000000000000000000");
-
-function bigIntMax(a: BigInt, b: BigInt): BigInt {
-  return a.gt(b) ? a : b;
-}
-
-function bigIntMin(a: BigInt, b: BigInt): BigInt {
-  return a.lt(b) ? a : b;
-}
-
-// AMM spot price: (virtualBNB + raisedBNB) × 1e18 / bcTokensPool
-function computePrice(virtualBNB: BigInt, raisedBNB: BigInt, bcTokensPool: BigInt): BigInt {
-  if (bcTokensPool.equals(ZERO)) return ZERO;
-  return virtualBNB.plus(raisedBNB).times(ONE_E18).div(bcTokensPool);
-}
-
-// Seed one TokenPeriodStats bucket per period at token launch so charts always have a
-// starting data point even when no trades have occurred yet.
-function seedLaunchChartData(tokenAddr: Address, blockNumber: BigInt, timestamp: BigInt, launchPrice: BigInt): void {
-  // Genesis per-block snapshot — one data point at the creation block.
-  const snapshotId = tokenAddr.concatI32(blockNumber.toI32());
-  if (TokenSnapshot.load(snapshotId) == null) {
-    const snap         = new TokenSnapshot(snapshotId);
-    snap.token         = tokenAddr;
-    snap.blockNumber   = blockNumber;
-    snap.timestamp     = timestamp;
-    snap.openRaisedBNB  = ZERO;
-    snap.closeRaisedBNB = ZERO;
-    snap.openPrice  = launchPrice;
-    snap.highPrice  = launchPrice;
-    snap.lowPrice   = launchPrice;
-    snap.closePrice = launchPrice;
-    snap.volumeBNB  = ZERO;
-    snap.buyCount   = 0;
-    snap.sellCount  = 0;
-    snap.save();
-  }
-
-  // One seed bucket per time window so time-weighted charts have data immediately.
-  const periods:   string[] = ["5m",  "45m",  "1h",   "1d",    "7d"];
-  const durations: i32[]    = [300,   2700,   3600,   86400,   604800];
-  for (let i = 0; i < periods.length; i++) {
-    const dur      = durations[i];
-    const bucketId = timestamp.div(BigInt.fromI32(dur)).toI32();
-    const statId   = tokenAddr.concat(Bytes.fromUTF8(periods[i])).concatI32(bucketId);
-    if (TokenPeriodStats.load(statId) != null) continue; // already created by a concurrent trade
-    const stat         = new TokenPeriodStats(statId);
-    stat.token         = tokenAddr;
-    stat.period        = periods[i];
-    stat.bucketId      = BigInt.fromI32(bucketId);
-    stat.periodStart   = BigInt.fromI32(bucketId).times(BigInt.fromI32(dur));
-    stat.openRaisedBNB  = ZERO;
-    stat.closeRaisedBNB = ZERO;
-    stat.buyVolumeBNB  = ZERO;
-    stat.sellVolumeBNB = ZERO;
-    stat.volumeBNB     = ZERO;
-    stat.buysCount     = ZERO;
-    stat.sellsCount    = ZERO;
-    stat.openPrice  = launchPrice;
-    stat.highPrice  = launchPrice;
-    stat.lowPrice   = launchPrice;
-    stat.closePrice = launchPrice;
-    stat.save();
-  }
-}
-
-function upsertOnePeriodStat(
-  tokenAddr: Address,
-  period: string,
-  duration: i32,
-  timestamp: BigInt,
-  preRaisedBNB: BigInt,
-  postRaisedBNB: BigInt,
-  bnbAmount: BigInt,
-  isBuy: boolean,
-  openPrice: BigInt,
-  closePrice: BigInt
-): void {
-  const bucketId = timestamp.div(BigInt.fromI32(duration)).toI32();
-  const id = tokenAddr.concat(Bytes.fromUTF8(period)).concatI32(bucketId);
-
-  let stats = TokenPeriodStats.load(id);
-  if (stats == null) {
-    stats = new TokenPeriodStats(id);
-    stats.token         = tokenAddr;
-    stats.period        = period;
-    stats.bucketId      = BigInt.fromI32(bucketId);
-    stats.periodStart   = BigInt.fromI32(bucketId).times(BigInt.fromI32(duration));
-    stats.buyVolumeBNB  = ZERO;
-    stats.sellVolumeBNB = ZERO;
-    stats.volumeBNB     = ZERO;
-    stats.buysCount     = ZERO;
-    stats.sellsCount    = ZERO;
-    stats.openRaisedBNB  = preRaisedBNB;
-    stats.closeRaisedBNB = preRaisedBNB;
-    stats.openPrice  = openPrice;
-    stats.highPrice  = bigIntMax(openPrice, closePrice);
-    stats.lowPrice   = bigIntMin(openPrice, closePrice);
-    stats.closePrice = closePrice;
-  } else {
-    stats.highPrice  = bigIntMax(stats.highPrice, closePrice);
-    stats.lowPrice   = bigIntMin(stats.lowPrice, closePrice);
-    stats.closePrice = closePrice;
-  }
-  stats.closeRaisedBNB = postRaisedBNB;
-  stats.volumeBNB      = stats.volumeBNB.plus(bnbAmount);
-  if (isBuy) {
-    stats.buyVolumeBNB = stats.buyVolumeBNB.plus(bnbAmount);
-    stats.buysCount    = stats.buysCount.plus(BigInt.fromI32(1));
-  } else {
-    stats.sellVolumeBNB = stats.sellVolumeBNB.plus(bnbAmount);
-    stats.sellsCount    = stats.sellsCount.plus(BigInt.fromI32(1));
-  }
-  stats.save();
-}
-
-function upsertAllPeriodStats(
-  tokenAddr: Address,
-  timestamp: BigInt,
-  preRaisedBNB: BigInt,
-  postRaisedBNB: BigInt,
-  bnbAmount: BigInt,
-  isBuy: boolean,
-  openPrice: BigInt,
-  closePrice: BigInt
-): void {
-  upsertOnePeriodStat(tokenAddr, "5m",  300,    timestamp, preRaisedBNB, postRaisedBNB, bnbAmount, isBuy, openPrice, closePrice);
-  upsertOnePeriodStat(tokenAddr, "45m", 2700,   timestamp, preRaisedBNB, postRaisedBNB, bnbAmount, isBuy, openPrice, closePrice);
-  upsertOnePeriodStat(tokenAddr, "1h",  3600,   timestamp, preRaisedBNB, postRaisedBNB, bnbAmount, isBuy, openPrice, closePrice);
-  upsertOnePeriodStat(tokenAddr, "1d",  86400,  timestamp, preRaisedBNB, postRaisedBNB, bnbAmount, isBuy, openPrice, closePrice);
-  upsertOnePeriodStat(tokenAddr, "7d",  604800, timestamp, preRaisedBNB, postRaisedBNB, bnbAmount, isBuy, openPrice, closePrice);
-}
-
-function upsertSnapshot(
-  tokenAddr: Address,
-  blockNumber: BigInt,
-  timestamp: BigInt,
-  preTradeRaisedBNB: BigInt,
-  postTradeRaisedBNB: BigInt,
-  bnbAmount: BigInt,
-  isBuy: boolean,
-  openPrice: BigInt,
-  closePrice: BigInt
-): void {
-  const snapshotId = tokenAddr.concatI32(blockNumber.toI32());
-  let snapshot = TokenSnapshot.load(snapshotId);
-  if (snapshot == null) {
-    snapshot = new TokenSnapshot(snapshotId);
-    snapshot.token          = tokenAddr;
-    snapshot.blockNumber    = blockNumber;
-    snapshot.timestamp      = timestamp;
-    snapshot.openRaisedBNB  = preTradeRaisedBNB;
-    snapshot.closeRaisedBNB = preTradeRaisedBNB;
-    snapshot.volumeBNB      = ZERO;
-    snapshot.buyCount       = 0;
-    snapshot.sellCount      = 0;
-    snapshot.openPrice  = openPrice;
-    snapshot.highPrice  = bigIntMax(openPrice, closePrice);
-    snapshot.lowPrice   = bigIntMin(openPrice, closePrice);
-    snapshot.closePrice = closePrice;
-  } else {
-    snapshot.highPrice  = bigIntMax(snapshot.highPrice, closePrice);
-    snapshot.lowPrice   = bigIntMin(snapshot.lowPrice, closePrice);
-    snapshot.closePrice = closePrice;
-  }
-  snapshot.closeRaisedBNB = postTradeRaisedBNB;
-  snapshot.volumeBNB = snapshot.volumeBNB.plus(bnbAmount);
-  if (isBuy) snapshot.buyCount  = snapshot.buyCount  + 1;
-  else        snapshot.sellCount = snapshot.sellCount + 1;
-  snapshot.save();
-}
+import { Token, Trade, Migration, TimelockAction, CreatorVaultPosition, LaunchpadPair } from "../generated/schema";
+import {
+  getOrCreateFactory,
+  detectTokenType,
+  loadIpfsMetadata,
+  MAX_SPOT_PRICE,
+  ZERO,
+  computePrice,
+  computeMarketCap,
+  seedLaunchChartData,
+  upsertSnapshot,
+  upsertAllPeriodStats,
+  applyUsdPricing,
+} from "./utils";
 
 // TokenRegistered fires first (during _registerToken), then TokenCreated fires at end
 // of createToken/createTT/createRFL — so we create the entity here and let
@@ -226,6 +66,9 @@ export function handleTokenRegistered(event: TokenRegistered): void {
     token.totalVolumeBNBSell = ZERO;
     token.bcTokensPool       = ZERO;
     token.lastKnownPrice     = ZERO;
+    token.marketCap          = ZERO;
+    token.priceUSD           = null;
+    token.marketCapUSD       = null;
     token.createdAtTimestamp   = event.block.timestamp;
     token.createdAtBlockNumber = event.block.number;
     token.txHash               = event.transaction.hash;
@@ -247,6 +90,8 @@ export function handleTokenRegistered(event: TokenRegistered): void {
     if (!balanceResult.reverted && balanceResult.value.gt(ZERO)) {
       token.bcTokensPool   = balanceResult.value;
       token.lastKnownPrice = computePrice(event.params.virtualBNB, ZERO, balanceResult.value);
+      token.marketCap      = computeMarketCap(token.lastKnownPrice, token.totalSupply);
+      applyUsdPricing(token, token.lastKnownPrice);
     }
 
     token.save();
@@ -269,6 +114,8 @@ export function handleTokenRegistered(event: TokenRegistered): void {
       if (!bal.reverted && bal.value.gt(ZERO)) {
         token.bcTokensPool   = bal.value;
         token.lastKnownPrice = computePrice(event.params.virtualBNB, ZERO, bal.value);
+        token.marketCap      = computeMarketCap(token.lastKnownPrice, token.totalSupply);
+        applyUsdPricing(token, token.lastKnownPrice);
       }
     }
     token.save();
@@ -301,6 +148,9 @@ export function handleTokenCreated(event: TokenCreated): void {
     token.totalVolumeBNBSell     = ZERO;
     token.bcTokensPool           = ZERO;
     token.lastKnownPrice         = ZERO;
+    token.marketCap              = ZERO;
+    token.priceUSD               = null;
+    token.marketCapUSD           = null;
     token.createdAtTimestamp     = event.block.timestamp;
     token.createdAtBlockNumber   = event.block.number;
     token.txHash                 = event.transaction.hash;
@@ -328,6 +178,8 @@ export function handleTokenCreated(event: TokenCreated): void {
   if (!priceResult.reverted && priceResult.value.lt(MAX_SPOT_PRICE)) {
     token.lastKnownPrice = priceResult.value;
   }
+  token.marketCap = computeMarketCap(token.lastKnownPrice, token.totalSupply);
+  applyUsdPricing(token, token.lastKnownPrice);
 
   token.save();
 
@@ -388,6 +240,8 @@ export function handleTokenBought(event: TokenBought): void {
   token.buysCount         = token.buysCount.plus(BigInt.fromI32(1));
   token.totalVolumeBNBBuy = token.totalVolumeBNBBuy.plus(event.params.bnbIn);
   token.lastKnownPrice    = closePrice;
+  token.marketCap         = computeMarketCap(closePrice, token.totalSupply);
+  applyUsdPricing(token, closePrice);
   token.save();
 
   const factory = getOrCreateFactory();
@@ -431,6 +285,8 @@ export function handleTokenSold(event: TokenSold): void {
   token.sellsCount         = token.sellsCount.plus(BigInt.fromI32(1));
   token.totalVolumeBNBSell = token.totalVolumeBNBSell.plus(event.params.bnbOut);
   token.lastKnownPrice     = closePrice;
+  token.marketCap          = computeMarketCap(closePrice, token.totalSupply);
+  applyUsdPricing(token, closePrice);
   token.save();
 
   const factory = getOrCreateFactory();
@@ -451,6 +307,21 @@ export function handleTokenMigrated(event: TokenMigrated): void {
   token.raisedBNB                = ZERO;
   token.bcTokensPool             = ZERO;
   token.save();
+
+  // STANDARD-token (V3) migrations already wired their pool from CreatorVault's
+  // PositionRegistered handler (same tx, fires first — see creatorVault.ts). TokenMigrated.pair
+  // is that same pool address in that case, so only wire a V2 pair here otherwise.
+  if (CreatorVaultPosition.load(event.params.token) == null) {
+    const pairContract = PancakePairContract.bind(event.params.pair);
+    const token0Result = pairContract.try_token0();
+
+    const pairLookup = new LaunchpadPair(event.params.pair);
+    pairLookup.token         = event.params.token;
+    pairLookup.tokenIsToken0 = !token0Result.reverted && token0Result.value.equals(event.params.token as Address);
+    pairLookup.save();
+
+    PancakePair.create(event.params.pair);
+  }
 
   const migrationId = event.transaction.hash.concatI32(event.logIndex.toI32());
   const migration   = new Migration(migrationId);

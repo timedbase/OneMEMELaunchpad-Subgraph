@@ -1,4 +1,4 @@
-import { BigInt, Bytes } from "@graphprotocol/graph-ts";
+import { Address, BigInt, Bytes } from "@graphprotocol/graph-ts";
 import {
   VestingAdded,
   Claimed,
@@ -11,7 +11,9 @@ import {
   OwnershipTransferred,
   LaunchManagerUpdated,
 } from "../generated/CreatorVault/CreatorVault";
-import { VestingSchedule, VestingClaim, CreatorVaultPosition, CreatorVaultFeeClaim, CreatorVaultState } from "../generated/schema";
+import { UniswapV3Pool as UniswapV3PoolContract } from "../generated/CreatorVault/UniswapV3Pool";
+import { LaunchpadV3Pool } from "../generated/templates";
+import { VestingSchedule, VestingClaim, CreatorVaultPosition, CreatorVaultFeeClaim, CreatorVaultState, LaunchpadPool } from "../generated/schema";
 
 function getOrCreateVaultState(address: Bytes): CreatorVaultState {
   let state = CreatorVaultState.load(address);
@@ -99,6 +101,16 @@ export function handlePositionRegistered(event: PositionRegistered): void {
   pos.registeredAtBlockNumber = event.block.number;
   pos.registeredTxHash        = event.transaction.hash;
   pos.save();
+
+  const poolContract = UniswapV3PoolContract.bind(event.params.pool);
+  const token0Result  = poolContract.try_token0();
+
+  const poolLookup = new LaunchpadPool(event.params.pool);
+  poolLookup.token         = event.params.token;
+  poolLookup.tokenIsToken0 = !token0Result.reverted && token0Result.value.equals(event.params.token as Address);
+  poolLookup.save();
+
+  LaunchpadV3Pool.create(event.params.pool);
 }
 
 export function handleFeesClaimed(event: FeesClaimed): void {
