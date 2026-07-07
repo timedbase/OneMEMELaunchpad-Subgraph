@@ -226,6 +226,8 @@ dataSources:
           file: ./abis/SparkLauncher.json
         - name: SparkToken
           file: ./abis/SparkToken.json
+        - name: UniswapV3Pool
+          file: ./abis/UniswapV3Pool.json
       eventHandlers:
         - event: TokenLaunched(indexed address,indexed address,indexed address,address,address,address,uint256)
           handler: handleTokenLaunched
