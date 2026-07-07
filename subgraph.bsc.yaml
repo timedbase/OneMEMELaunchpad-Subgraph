@@ -305,6 +305,15 @@ templates:
         - event: Transfer(indexed address,indexed address,uint256)
           handler: handleTransfer
       file: ./src/memeToken.ts
+  # NOTE: BSC's Spark/Launchpad V3 pools are PancakeSwap V3, not genuine Uniswap V3 — its
+  # Swap event has 2 extra trailing fields (protocolFeesToken0/1), giving it a different
+  # topic0 than plain Uniswap V3. The abi `name:` below is deliberately kept as
+  # "UniswapV3Pool" (not renamed to PancakeV3Pool) even though `file:` points at the
+  # PancakeSwap-shaped ABI — src/sparkPool.ts and src/launchpadPool.ts are shared with
+  # subgraph.ethereum.yaml and import the generated event type via that abi name
+  # (../generated/templates/UniswapV3Pool/UniswapV3Pool), so keeping the name stable here
+  # avoids forking those mapping files just for BSC. Ethereum's pools are genuine Uniswap
+  # V3, so subgraph.ethereum.yaml keeps the real ./abis/UniswapV3Pool.json untouched.
   - kind: ethereum
     name: UniswapV3Pool
     network: bsc
@@ -322,9 +331,9 @@ templates:
         - SparkTokenPeriodStats
       abis:
         - name: UniswapV3Pool
-          file: ./abis/UniswapV3Pool.json
+          file: ./abis/PancakeV3Pool.json
       eventHandlers:
-        - event: Swap(indexed address,indexed address,int256,int256,uint160,uint128,int24)
+        - event: Swap(indexed address,indexed address,int256,int256,uint160,uint128,int24,uint128,uint128)
           handler: handleSwap
       file: ./src/sparkPool.ts
   - kind: ethereum
@@ -344,9 +353,9 @@ templates:
         - DexTrade
       abis:
         - name: UniswapV3Pool
-          file: ./abis/UniswapV3Pool.json
+          file: ./abis/PancakeV3Pool.json
       eventHandlers:
-        - event: Swap(indexed address,indexed address,int256,int256,uint160,uint128,int24)
+        - event: Swap(indexed address,indexed address,int256,int256,uint160,uint128,int24,uint128,uint128)
           handler: handleSwap
       file: ./src/launchpadPool.ts
   - kind: ethereum

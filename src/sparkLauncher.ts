@@ -13,7 +13,7 @@ import {
 } from "../generated/SparkLauncher/SparkLauncher";
 import { SparkLauncher as SparkLauncherContract } from "../generated/SparkLauncher/SparkLauncher";
 import { SparkToken as SparkTokenContract } from "../generated/SparkLauncher/SparkToken";
-import { UniswapV3Pool as UniswapV3PoolContract } from "../generated/templates/UniswapV3Pool/UniswapV3Pool";
+import { UniswapV3Pool as UniswapV3PoolContract } from "../generated/SparkLauncher/UniswapV3Pool";
 import {
   SparkLaunchedToken,
   SparkDex,
